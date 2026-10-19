@@ -89,8 +89,17 @@ already assumes.
 ```
 
 - One property `dynamic-form.version` for both; api `X` runs against image `X`.
-- The client's JSON mapper is Jackson 2. The api jar is plain DTOs (no Jackson types), so this works if the
-  round-trip test planned in dynamic-form passes. Until the api jar exists, phase 0 blocks (see section 7).
+- Api package is `com.example.dynamicform.api` (decided and published; do not use `com.example.backend.dto`).
+  It also holds constants `ApiPaths` (e.g. `ApiPaths.FORMS = "/api/forms"`) and `Roles` (e.g. `Roles.ADMIN`).
+  Use them in `FormApi`/`FormDataApi` and role checks instead of string literals.
+- The client's JSON mapper is Jackson 2. The api jar is plain DTOs (no Jackson types) and dynamic-form guards the
+  wire format with a Jackson 2 round-trip test. If a DTO fails to deserialize in the client, fix it in
+  dynamic-form (Lombok `@Jacksonized` or records), not with client-side mixins.
+- Repsy is public read, so the client needs no credentials to resolve the jars. Only dynamic-form needs
+  `REPSY_USER`/`REPSY_TOKEN` to publish.
+- The api jar and image come from the same build and the same version, so a client built against api `X` must run
+  against image `X`. The testcontainers jar defaults to `ghcr.io/markoniemi/dynamic-form:<its own jar version>`,
+  which keeps the pair aligned as long as the client uses one `dynamic-form.version`.
 - The api jar brings `jakarta.validation-api`; the client may use the annotations' constraints for client-side
   checks but needs no Hibernate Validator at runtime unless it wants to run validation itself.
 
@@ -111,18 +120,26 @@ Client usage:
 
 ```java
 DynamicFormStack stack = new DynamicFormStack()
-    .withAuthConfigFile("oauth2-server.yaml")   // adds desktop-client (section 4.2)
+    .withAuthConfigFile("oauth2-server.yaml")   // classpath resource, adds desktop-client (section 4.2)
     .start();
 String backend = stack.backendUrl();
 String auth    = stack.authUrl();               // http://localhost:9000
+// AutoCloseable: stop it in @AfterAll / a shutdown hook
 ```
+
+`DynamicFormContainer` (backend only, caller supplies `withIssuerUri`/`withJwkSetUri`) also exists, but the client
+should use the stack. Use `withLogConsumer(...)` on the container to print backend logs when an IT fails.
 
 Consequences to keep in mind:
 - Fixed port 9000: tests cannot run alongside a local auth server on 9000.
 - The client's `src/test/resources/oauth2-server.yaml` only needs the `desktop-client` registration; the stack merges
   it over the default users. The oauth2-server rule still applies: lists replace, so a list override (e.g.
   `redirect-uris`) must contain every entry.
-- Database choice (H2 `test` profile vs Postgres) is decided inside the testcontainers jar, not here.
+- Database: Postgres (decided). The stack runs the image's default `prod` profile (Postgres + Flyway), so the
+  `forms/*.json` samples the ITs in section 5 assume are seeded. Startup is slower than H2 and needs a third
+  image (postgres). If seeding is missing, raise it in dynamic-form rather than seeding from the client.
+- The stack's health wait is `/actuator/health` with a 2 minute timeout; first start also pulls two images
+  (backend from GHCR, auth server), so CI should cache or tolerate that.
 - A `Launcher` main under `src/test` starts the stack and the app for manual dev, like dynamic-form's
   `DevelopmentApplication`.
 - Everything is pinned by `dynamic-form.version`. Use a release (or a dated snapshot) in CI so the client build is
@@ -270,23 +287,26 @@ the control named `field`. The server is the source of truth. Submitted `data` i
 
 | # | Phase | Output | Exit check |
 |---|-------|--------|------------|
-| 0 | Prereqs | dynamic-form has published `dynamic-form-api`, `dynamic-form-testcontainers` and the GHCR image (its steps 1-5); SnapFX in `~/.m2`; loopback redirect spike (4.2) | Both jars resolve from Repsy, image pulls, spike result recorded here |
+| 0 | Prereqs | dynamic-form side is done (api jar, testcontainers jar, GHCR image published). Remaining: pick `dynamic-form.version` and confirm it resolves; SnapFX in `~/.m2`; loopback redirect spike (4.2) | Both jars resolve from Repsy, image pulls (public GHCR package), spike result recorded here |
 | 1 | Skeleton | Maven project, `App`, SnapFX with two empty panes, layout save/load | App starts, layout restores |
 | 2 | Test stack | Test `oauth2-server.yaml` with `desktop-client`, JUnit helper around `DynamicFormStack`, `Launcher` | `*IT` fetches `/api/config/oauth2-issuer-uri` |
 | 3 | Auth + API | PKCE flow, `ApiClient` on api-jar DTOs, API ITs | API IT passes for admin and user |
 | 4 | Read path | `FormListPane`, `FormFillPane` (all 9 field types), submit | TestFX: submit creates submission |
 | 5 | Submissions | `SubmissionsPane` view/edit/delete | TestFX + role checks |
 | 6 | Admin | `FormEditorPane`, create/update/delete forms | Admin IT passes |
-| 7 | Polish and package | i18n, error/busy UX, `jpackage` installer, CI workflow (build and ITs; also triggered by dynamic-form's `dynamic-form-built` dispatch) | Installer runs on clean Windows VM |
+| 7 | Polish and package | i18n, error/busy UX, `jpackage` installer, CI workflow (build and ITs; triggers: push, PR, and `repository_dispatch` type `dynamic-form-built`, which dynamic-form sends after publishing on a push to `main`) | Installer runs on clean Windows VM |
 
 ## 8. Open questions
 
-1. Until dynamic-form publishes (its steps 1-5), do we work against `mvn install` of local snapshots of the api
-   and testcontainers jars plus a locally built image? Proposed: yes, for phases 1-2 only.
+1. ~~Work against local snapshots until dynamic-form publishes?~~ Resolved: dynamic-form is published, depend on
+   Repsy and GHCR directly. Dispatch-triggered CI builds pick up the new version only if `dynamic-form.version`
+   floats (`-SNAPSHOT`/`latest`); with a pinned release the dispatch just re-runs the same build, so decide in
+   question 5.
 2. Does the production deployment (AWS Cognito, per `docs/AwsImprovements.md`) need to be supported by the
    desktop client? Cognito needs its own public client, and role mapping already reads `cognito:groups`.
 3. Target OS for the installer: Windows only, or also macOS and Linux?
 4. Should the client remember login across restarts (refresh token in OS keystore)? The oauth2-server never
    issues refresh tokens to public clients, so this needs either a confidential client or re-login each start.
-5. Snapshot or release versions for `dynamic-form.version` in CI? Releases are reproducible; snapshots need the
-   Repsy snapshot policy confirmed (open in dynamic-form's doc).
+5. Snapshot or release versions for `dynamic-form.version` in CI? Repsy serves snapshots (confirmed), so
+   `-SNAPSHOT` works. Releases are reproducible; snapshots are not. Proposed: `-SNAPSHOT` for local dev and the
+   dispatch-triggered CI run, pinned release for installer builds.
