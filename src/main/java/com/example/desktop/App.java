@@ -101,7 +101,6 @@ public class App extends Application {
         new DockLayoutManager(
             new SnapFX(),
             layoutStore(),
-            state,
             nodeId ->
                 switch (nodeId) {
                   case DockLayoutManager.FORM_LIST -> list;

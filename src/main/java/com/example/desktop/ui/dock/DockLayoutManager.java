@@ -1,7 +1,7 @@
 package com.example.desktop.ui.dock;
 
 import com.example.desktop.i18n.Messages;
-import com.example.desktop.state.AppState;
+import java.util.List;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.stage.Stage;
@@ -32,13 +32,11 @@ public class DockLayoutManager {
 
   private final SnapFX snapFX;
   private final LayoutStore store;
-  private final AppState state;
   private final PaneFactory panes;
 
-  public DockLayoutManager(SnapFX snapFX, LayoutStore store, AppState state, PaneFactory panes) {
+  public DockLayoutManager(SnapFX snapFX, LayoutStore store, PaneFactory panes) {
     this.snapFX = snapFX;
     this.store = store;
-    this.state = state;
     this.panes = panes;
   }
 
@@ -58,6 +56,30 @@ public class DockLayoutManager {
     store.save(snapFX.saveLayout());
   }
 
+  /** The current layout as SnapFX serializes it, without writing it anywhere. */
+  public String currentLayout() {
+    return snapFX.saveLayout();
+  }
+
+  /** The docked node with this layout id, or null if the layout does not contain one. */
+  public DockNode nodeById(String id) {
+    DockElement element = snapFX.getDockGraph().findElementByLayoutId(id);
+    return element instanceof DockNode node ? node : null;
+  }
+
+  /**
+   * Removes every docked pane, as a user does by clicking each close button. Exists so the
+   * blank-layout recovery path can be tested rather than only reasoned about.
+   */
+  public void closeAllPanes() {
+    for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {
+      DockNode node = nodeById(id);
+      if (node != null) {
+        snapFX.remove(node);
+      }
+    }
+  }
+
   /**
    * @return true if a saved layout was restored; false if the caller should dock the defaults
    */
@@ -74,7 +96,7 @@ public class DockLayoutManager {
                   // this catches anything else that deserializes to nothing.
                   return false;
                 }
-                hideEditorFromNonAdmins();
+                stripPanesTheFactoryDeclines();
                 return true;
               } catch (DockLayoutLoadException e) {
                 // A layout from an older build, or a hand-edited one. Starting with the default
@@ -115,16 +137,21 @@ public class DockLayoutManager {
   }
 
   /**
-   * A saved layout may still carry the editor from a session where this user was an admin, or from
-   * a different user entirely, so strip it rather than trusting the file.
+   * Removes any node the factory will not build.
+   *
+   * <p>A saved layout can outlive the session that made it — an admin's layout opened by a plain
+   * user still names the editor — so the file is not trusted. The factory is the single authority on
+   * what this session may see, which keeps the default and restored paths from disagreeing.
    */
-  private void hideEditorFromNonAdmins() {
-    if (state.admin().get()) {
-      return;
-    }
-    DockElement editor = snapFX.getDockGraph().findElementByLayoutId(FORM_EDITOR);
-    if (editor instanceof DockNode node) {
-      snapFX.remove(node);
+  private void stripPanesTheFactoryDeclines() {
+    for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {
+      if (panes.create(id) != null) {
+        continue;
+      }
+      DockElement element = snapFX.getDockGraph().findElementByLayoutId(id);
+      if (element instanceof DockNode node) {
+        snapFX.remove(node);
+      }
     }
   }
 
