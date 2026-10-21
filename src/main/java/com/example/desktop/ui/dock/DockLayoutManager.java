@@ -1,10 +1,9 @@
 package com.example.desktop.ui.dock;
 
-import com.example.desktop.auth.AuthSession;
-import javafx.geometry.Pos;
+import com.example.desktop.i18n.Messages;
+import com.example.desktop.state.AppState;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import org.snapfx.SnapFX;
 import org.snapfx.model.DockElement;
@@ -18,8 +17,9 @@ import org.snapfx.persistence.DockLayoutLoadException;
  * <p>This is the only class in the project that may import {@code org.snapfx}. SnapFX is a preview
  * library and is not on Maven Central, so keeping it behind one class keeps a swap cheap.
  *
- * <p>The panes are placeholders for now; the real ones replace the content of these nodes without
- * changing their ids.
+ * <p>Pane content comes from a {@link PaneFactory} the caller supplies, so this class knows ids and
+ * positions but nothing about the API. A factory returning null for an id is how a non-admin ends
+ * up with no editor.
  */
 public class DockLayoutManager {
 
@@ -32,12 +32,14 @@ public class DockLayoutManager {
 
   private final SnapFX snapFX;
   private final LayoutStore store;
-  private final AuthSession session;
+  private final AppState state;
+  private final PaneFactory panes;
 
-  public DockLayoutManager(SnapFX snapFX, LayoutStore store, AuthSession session) {
+  public DockLayoutManager(SnapFX snapFX, LayoutStore store, AppState state, PaneFactory panes) {
     this.snapFX = snapFX;
     this.store = store;
-    this.session = session;
+    this.state = state;
+    this.panes = panes;
   }
 
   /** Initialises SnapFX, restores the saved layout if there is a usable one, and returns the root. */
@@ -91,21 +93,23 @@ public class DockLayoutManager {
    * puts the editor in a quarter-width strip next to the list and the submissions under that pair.
    */
   private void dockDefaults() {
-    DockNode list = snapFX.dock(placeholder("Forms"), "Forms");
+    DockNode list = snapFX.dock(panes.create(FORM_LIST), title(FORM_LIST));
     list.setLayoutId(FORM_LIST);
 
-    DockNode fill = snapFX.dock(placeholder("Form"), "Form", list, DockPosition.RIGHT);
+    DockNode fill =
+        snapFX.dock(panes.create(FORM_FILL), title(FORM_FILL), list, DockPosition.RIGHT);
     fill.setLayoutId(FORM_FILL);
 
     snapFX
-        .dock(placeholder("Submissions"), "Submissions", fill, DockPosition.BOTTOM)
+        .dock(panes.create(SUBMISSIONS), title(SUBMISSIONS), fill, DockPosition.BOTTOM)
         .setLayoutId(SUBMISSIONS);
 
-    if (session.isAdmin()) {
+    Node editor = panes.create(FORM_EDITOR);
+    if (editor != null) {
       // Tabbed with the form rather than given its own column: the two are alternative views of
       // the same selected form, and never useful side by side.
       snapFX
-          .dock(placeholder("Editor"), "Editor", fill, DockPosition.CENTER)
+          .dock(editor, title(FORM_EDITOR), fill, DockPosition.CENTER)
           .setLayoutId(FORM_EDITOR);
     }
   }
@@ -115,7 +119,7 @@ public class DockLayoutManager {
    * a different user entirely, so strip it rather than trusting the file.
    */
   private void hideEditorFromNonAdmins() {
-    if (session.isAdmin()) {
+    if (state.admin().get()) {
       return;
     }
     DockElement editor = snapFX.getDockGraph().findElementByLayoutId(FORM_EDITOR);
@@ -129,21 +133,18 @@ public class DockLayoutManager {
    * layout degrades: SnapFX drops the node instead of failing the load.
    */
   private DockNode createNode(String id) {
-    return switch (id) {
-      case FORM_LIST -> new DockNode(FORM_LIST, placeholder("Forms"), "Forms");
-      case FORM_FILL -> new DockNode(FORM_FILL, placeholder("Form"), "Form");
-      case SUBMISSIONS -> new DockNode(SUBMISSIONS, placeholder("Submissions"), "Submissions");
-      case FORM_EDITOR ->
-          session.isAdmin() ? new DockNode(FORM_EDITOR, placeholder("Editor"), "Editor") : null;
-      default -> null;
-    };
+    Node content = panes.create(id);
+    return content == null ? null : new DockNode(id, content, title(id));
   }
 
-  private static Node placeholder(String text) {
-    Label label = new Label(text);
-    label.setAlignment(Pos.CENTER);
-    label.setMaxWidth(Double.MAX_VALUE);
-    label.setMaxHeight(Double.MAX_VALUE);
-    return label;
+  /** The dock node's tab label, from the shared bundle so it matches the web client's wording. */
+  private static String title(String id) {
+    return switch (id) {
+      case FORM_LIST -> Messages.get("navigation.forms");
+      case FORM_FILL -> Messages.get("form.submit");
+      case SUBMISSIONS -> Messages.get("navigation.submissions");
+      case FORM_EDITOR -> Messages.get("navigation.createForm");
+      default -> id;
+    };
   }
 }

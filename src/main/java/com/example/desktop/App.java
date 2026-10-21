@@ -1,11 +1,19 @@
 package com.example.desktop;
 
+import com.example.desktop.api.ApiClient;
+import com.example.desktop.api.FormApi;
+import com.example.desktop.api.FormDataApi;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.BrowserLauncher;
 import com.example.desktop.auth.PkceLoginFlow;
+import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
+import com.example.desktop.state.AppState;
 import com.example.desktop.ui.dock.DockLayoutManager;
 import com.example.desktop.ui.dock.LayoutStore;
+import com.example.desktop.ui.forms.FormFillPane;
+import com.example.desktop.ui.forms.FormListPane;
+import com.example.dynamicform.api.FormDto;
 import java.nio.file.Path;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -65,9 +73,60 @@ public class App extends Application {
   }
 
   private void showMainWindow(Stage stage, AuthSession session) {
-    layout = new DockLayoutManager(new SnapFX(), layoutStore(), session);
+    String backendUrl = System.getProperty("backend.url", DEFAULT_BACKEND_URL);
+    ApiClient client =
+        new ApiClient(backendUrl, session::accessToken, JsonMapperFactory.create());
+    FormApi formApi = new FormApi(client);
+    FormDataApi dataApi = new FormDataApi(client);
+
+    AppState state = new AppState();
+    state.session().set(session);
+
+    FormListPane list = new FormListPane(formApi, state);
+    FormFillPane fill = new FormFillPane(dataApi, state);
+    // The panes never see each other: a selection published to AppState is what loads the form,
+    // and the fetch runs off the FX thread.
+    state
+        .selectedFormKey()
+        .addListener((obs, old, formKey) -> loadForm(formApi, fill, formKey));
+
+    layout =
+        new DockLayoutManager(
+            new SnapFX(),
+            layoutStore(),
+            state,
+            nodeId ->
+                switch (nodeId) {
+                  case DockLayoutManager.FORM_LIST -> list;
+                  case DockLayoutManager.FORM_FILL -> fill;
+                  // Replaced by the real panes in the tasks that add them.
+                  case DockLayoutManager.SUBMISSIONS -> new Label(
+                      Messages.get("submissions.noSubmissions"));
+                  case DockLayoutManager.FORM_EDITOR ->
+                      state.admin().get() ? new Label(Messages.get("editForm.title")) : null;
+                  default -> null;
+                });
+
     stage.setTitle("Dynamic Form Desktop" + (session.isAdmin() ? " (admin)" : ""));
     stage.getScene().setRoot(layout.build(stage));
+    list.refresh();
+  }
+
+  private static void loadForm(FormApi formApi, FormFillPane fill, String formKey) {
+    if (formKey == null || formKey.isBlank()) {
+      return;
+    }
+    Task<FormDto> load =
+        new Task<>() {
+          @Override
+          protected FormDto call() {
+            return formApi.get(formKey);
+          }
+        };
+    load.setOnSucceeded(event -> fill.show(load.getValue()));
+    Thread thread = new Thread(load, "load-form");
+    thread.setDaemon(true);
+    thread.start();
   }
 
   /** Shows why the application cannot continue, then exits. */
