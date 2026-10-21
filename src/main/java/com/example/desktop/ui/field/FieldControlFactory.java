@@ -1,15 +1,26 @@
 package com.example.desktop.ui.field;
 
 import com.example.dynamicform.api.FieldDto;
+import com.example.dynamicform.api.FieldOptionDto;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.function.UnaryOperator;
 import javafx.scene.Node;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextFormatter;
+import javafx.scene.control.Toggle;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.layout.VBox;
+import javafx.util.StringConverter;
 
 /**
  * Maps a {@link FieldDto}'s {@code type} to a control and a value accessor.
@@ -32,8 +43,80 @@ public final class FieldControlFactory {
       case "textarea" -> text(field, new TextArea());
       case "number" -> number(field);
       case "date" -> date(field);
-      default -> throw new IllegalArgumentException("Unsupported field type: " + field.getType());
+      case "select" -> select(field);
+      case "radio" -> radio(field);
+      case "checkbox" -> checkbox(field);
+      // Not an error: a newer backend may serve a type this build predates, and one unrenderable
+      // field must not blank the rest of the form.
+      default -> unknown(field);
     };
+  }
+
+  private static FieldControl select(FieldDto field) {
+    ComboBox<FieldOptionDto> combo = new ComboBox<>();
+    combo.getItems().setAll(options(field));
+    combo.setConverter(
+        new StringConverter<>() {
+          @Override
+          public String toString(FieldOptionDto option) {
+            return option == null ? "" : option.getLabel();
+          }
+
+          @Override
+          public FieldOptionDto fromString(String label) {
+            return null; // not editable
+          }
+        });
+    return new SelectFieldControl(field.getName(), combo);
+  }
+
+  private static FieldControl radio(FieldDto field) {
+    ToggleGroup group = new ToggleGroup();
+    VBox box = new VBox(4);
+    for (FieldOptionDto option : options(field)) {
+      RadioButton button = new RadioButton(option.getLabel());
+      button.setUserData(option.getValue());
+      button.setToggleGroup(group);
+      box.getChildren().add(button);
+    }
+    return new RadioFieldControl(field.getName(), box, group);
+  }
+
+  /**
+   * With options, a group whose value is the list of selected values; without, a lone checkbox
+   * whose value is a boolean.
+   *
+   * <p>The desktop sends a one-element list for a single-option group, where the React client sends
+   * the option's value or {@code false}. One rule inside this client is worth more than matching a
+   * shape the frontend itself renders inconsistently — its read-only view treats the value as a
+   * boolean regardless. No seeded form has a one-option checkbox.
+   */
+  private static FieldControl checkbox(FieldDto field) {
+    List<FieldOptionDto> options = options(field);
+    if (options.isEmpty()) {
+      return new BooleanFieldControl(field.getName(), new CheckBox(field.getLabel()));
+    }
+    VBox box = new VBox(4);
+    List<CheckBox> boxes = new ArrayList<>();
+    for (FieldOptionDto option : options) {
+      CheckBox check = new CheckBox(option.getLabel());
+      check.setUserData(option.getValue());
+      boxes.add(check);
+      box.getChildren().add(check);
+    }
+    return new CheckboxGroupFieldControl(field.getName(), box, List.copyOf(boxes));
+  }
+
+  private static FieldControl unknown(FieldDto field) {
+    TextField placeholder = new TextField();
+    placeholder.setPromptText("Unsupported field type: " + field.getType());
+    placeholder.setDisable(true);
+    return new UnknownFieldControl(field.getName(), placeholder);
+  }
+
+  /** {@code FieldDto.options} is nullable, and nothing in the backend forbids an empty list. */
+  private static List<FieldOptionDto> options(FieldDto field) {
+    return field.getOptions() == null ? List.of() : field.getOptions();
   }
 
   private static FieldControl text(FieldDto field, TextField input) {
@@ -138,6 +221,123 @@ public final class FieldControlFactory {
     @Override
     public void setValue(Object value) {
       input.setText(value == null ? "" : String.valueOf(value));
+    }
+  }
+
+  private record SelectFieldControl(String fieldName, ComboBox<FieldOptionDto> combo)
+      implements FieldControl {
+
+    @Override
+    public Node node() {
+      return combo;
+    }
+
+    @Override
+    public Object value() {
+      FieldOptionDto selected = combo.getValue();
+      return selected == null ? "" : selected.getValue();
+    }
+
+    @Override
+    public void setValue(Object value) {
+      String wanted = value == null ? "" : String.valueOf(value);
+      combo.setValue(
+          combo.getItems().stream()
+              .filter(option -> option.getValue().equals(wanted))
+              .findFirst()
+              .orElse(null));
+    }
+  }
+
+  private record RadioFieldControl(String fieldName, VBox box, ToggleGroup group)
+      implements FieldControl {
+
+    @Override
+    public Node node() {
+      return box;
+    }
+
+    @Override
+    public Object value() {
+      Toggle selected = group.getSelectedToggle();
+      return selected == null ? "" : String.valueOf(selected.getUserData());
+    }
+
+    @Override
+    public void setValue(Object value) {
+      String wanted = value == null ? "" : String.valueOf(value);
+      group.getToggles().stream()
+          .filter(toggle -> wanted.equals(toggle.getUserData()))
+          .findFirst()
+          .ifPresentOrElse(
+              toggle -> group.selectToggle(toggle), () -> group.selectToggle(null));
+    }
+  }
+
+  private record CheckboxGroupFieldControl(String fieldName, VBox box, List<CheckBox> boxes)
+      implements FieldControl {
+
+    @Override
+    public Node node() {
+      return box;
+    }
+
+    @Override
+    public Object value() {
+      return boxes.stream()
+          .filter(CheckBox::isSelected)
+          .map(check -> String.valueOf(check.getUserData()))
+          .toList();
+    }
+
+    @Override
+    public void setValue(Object value) {
+      Collection<?> selected = value instanceof Collection<?> c ? c : List.of();
+      List<String> wanted = selected.stream().map(String::valueOf).toList();
+      boxes.forEach(check -> check.setSelected(wanted.contains(String.valueOf(check.getUserData()))));
+    }
+  }
+
+  private record BooleanFieldControl(String fieldName, CheckBox check) implements FieldControl {
+
+    @Override
+    public Node node() {
+      return check;
+    }
+
+    @Override
+    public Object value() {
+      return check.isSelected();
+    }
+
+    @Override
+    public void setValue(Object value) {
+      check.setSelected(Boolean.parseBoolean(String.valueOf(value)));
+    }
+  }
+
+  /** A field whose type this build does not know: visible, inert, and never submitted. */
+  private record UnknownFieldControl(String fieldName, TextField placeholder)
+      implements FieldControl {
+
+    @Override
+    public Node node() {
+      return placeholder;
+    }
+
+    @Override
+    public Object value() {
+      return "";
+    }
+
+    @Override
+    public void setValue(Object value) {
+      // nothing to show it in
+    }
+
+    @Override
+    public boolean submittable() {
+      return false;
     }
   }
 
