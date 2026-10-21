@@ -164,8 +164,15 @@ Consequences to keep in mind:
 - Database: Postgres (decided). The stack runs the image's default `prod` profile (Postgres + Flyway), so the
   `forms/*.json` samples the ITs in section 5 assume are seeded. Startup is slower than H2 and needs a third
   image (postgres). If seeding is missing, raise it in dynamic-form rather than seeding from the client.
-- The stack's health wait is `/actuator/health` with a 2 minute timeout; first start also pulls two images
-  (backend from GHCR, auth server), so CI should cache or tolerate that.
+- The stack's health wait is `/actuator/health` with a 2 minute timeout; first start also pulls three images
+  (backend from GHCR, auth server, `postgres:16-alpine`), so CI should cache or tolerate that.
+- **Blocker: `ghcr.io/markoniemi/dynamic-form` is still a private package.** Its anonymous token request returns
+  `UNAUTHORIZED`, while `ghcr.io/markoniemi/oauth2-server` issues a token normally. dynamic-form's own CI is
+  unaffected (it authenticates to push) and so is local work there (`jib:dockerBuild` writes to the local
+  daemon), but this client's tests cannot pull it on any machine or runner that is not logged in to GHCR. Either
+  the package gets made public — tracked as action 1 in
+  [PrepareForJavaFXClient.md](../../dynamic-form/docs/PrepareForJavaFXClient.md) §6 — or every developer and the
+  client's CI needs a `docker login ghcr.io` with a `read:packages` token.
 - A `Launcher` main under `src/test` starts the stack and the app for manual dev, like dynamic-form's
   `DevelopmentApplication`.
 - Everything is pinned by `dynamic-form.version`. Use a release (or a dated snapshot) in CI so the client build is
@@ -180,7 +187,7 @@ Consequences to keep in mind:
 | Java / JavaFX | 21 / 21+ | SnapFX needs 21+, matches backend |
 | Build | Maven | Same toolchain as dynamic-form and oauth2-server |
 | Docking | SnapFX 0.8.0 | See 4.4. Not on Maven Central; installed from its GitHub release by `scripts/install-snapfx.sh` |
-| HTTP | `java.net.http.HttpClient` behind a hand-written `ApiClient` | No extra dep. Feign was considered and rejected — see 4.6 |
+| HTTP | `java.net.http.HttpClient` behind a hand-written `ApiClient` | No extra dep. Retrofit is the sanctioned later experiment, Feign is not — see 4.6 |
 | Models | `dynamic-form-api` jar | Shared DTOs from dynamic-form, no hand-written copies |
 | JSON | Jackson 2 (`jackson-databind`) | Backend is Jackson 3; wire format is plain JSON, guarded by the api jar's round-trip test |
 | OAuth2 | Hand-rolled PKCE flow (~150 lines) over `HttpClient` + loopback `HttpServer` | Avoids a heavy lib; alternative: Nimbus `oauth2-oidc-sdk` |
@@ -313,48 +320,70 @@ Note the repo is internally inconsistent about `checkbox`: the React form sends 
 field but `false` or a value string for a single-option one, while its read-only renderer treats the value as a
 boolean. `FieldControlFactory` has to pick deliberately; the array is what reaches the wire.
 
-### 4.6 Decision: Feign or a hand-written client?
+### 4.6 Decision: which HTTP client?
 
-**Decision: a hand-written `ApiClient` over `java.net.http.HttpClient`. No Feign, and no Feign interface in
-`dynamic-form-api`.**
+**Decision: a hand-written `ApiClient` over `java.net.http.HttpClient` for v1. Retrofit is the sanctioned
+later experiment; Feign is not.**
 
-Feign in the client was rejected on three grounds:
-- The Feign used elsewhere in these repos is **Spring Cloud** OpenFeign (`@FeignClient`, `@GetMapping`,
-  `@EnableFeignClients`, a Spring context). A JavaFX fat client has no Spring and should not grow one, so this
-  would be **plain** OpenFeign (`io.github.openfeign:feign-core`) with `@RequestLine` and a manual
-  `Feign.builder()`. Different annotations and different wiring, so the familiarity largely does not transfer.
-  Spring Cloud OpenFeign is also feature-complete, with Spring HTTP Service Clients as its named successor.
-- Request building is not where this API's difficulty lives. The `text/plain` issuer endpoint, four different
-  success statuses, the RFC 7807 body with errors under `errors`, the empty-body 401 and re-login on 401 all
-  need a custom `Decoder`, `ErrorDecoder` and `RequestInterceptor` — the same code volume as the hand-written
-  client, just spread across Feign's SPI.
-- Eight endpoints is below the size where a declarative client pays for its dependency, and three extra jars go
-  into the `jpackage` runtime image.
+The conventional options for a Java REST client split on whether the client runs inside Spring:
 
-Feign would become the better choice if the endpoint count grew several-fold, or if a second non-Spring consumer
-appeared.
+| Approach | Style | Where it is conventional |
+|----------|-------|--------------------------|
+| `java.net.http.HttpClient` + Jackson | imperative, zero deps | JDK 11+, any plain-Java client. The default when you want no dependency |
+| **Retrofit** + OkHttp + `converter-jackson` | declarative interfaces | The standard non-Spring declarative choice |
+| Spring `RestClient` | fluent imperative | Spring 6.1+; the modern replacement for `RestTemplate` |
+| Spring `@HttpExchange` + `HttpServiceProxyFactory` | declarative interfaces | Spring 6+, pushed in Boot 4; Spring's own answer to Feign |
+| JAX-RS Client / MicroProfile Rest Client | imperative / declarative | Jakarta EE, Quarkus |
+| OpenAPI Generator | generated | When the server publishes an OpenAPI document |
+| Spring Cloud OpenFeign | declarative | Was conventional in Spring Cloud; now feature-complete, superseded by `@HttpExchange` |
 
-A **Feign interface in `dynamic-form-api` is a clearer no**: a shared client interface only prevents drift if
-both sides use it, and Spring MVC cannot implement a `@RequestLine`-annotated interface. It would add
-`feign-core` as a compile dependency for every consumer — including the backend, which could not benefit — and
-it breaks the api jar's stated rule (`PrepareForJavaFXClient.md` §2: validation-api and provided Lombok, nothing
+This client has no Spring and should not grow one, which removes the whole Spring column. That leaves
+`HttpClient` or Retrofit.
+
+**Why `HttpClient` wins for v1:** request building is not where this API's difficulty lives. The `text/plain`
+issuer endpoint, four different success statuses, the RFC 7807 body with errors under `errors`, the empty-body
+401 and re-login on 401 are all response-side. Retrofit hands back `Response<T>` and `errorBody()` and that
+parsing gets written either way, so it would save the easy half and cost three jars plus roughly 1 MB in the
+`jpackage` image. Eight endpoints is below the size where a declarative client pays for itself.
+
+**When to revisit:** if the endpoint count grows well past eight, or the declarative style is wanted for
+consistency with the other repos here. Switch to **Retrofit**, not Feign — Retrofit is the conventional
+non-Spring declarative client, whereas the Feign used elsewhere in these repos is **Spring Cloud** OpenFeign
+(`@FeignClient`, `@GetMapping`, `@EnableFeignClients`, a Spring context). Without Spring that would mean plain
+OpenFeign (`io.github.openfeign:feign-core`) with `@RequestLine` and a manual `Feign.builder()` — different
+annotations and different wiring, so the familiarity would largely not transfer, and Spring Cloud OpenFeign is
+feature-complete besides. The switch is contained: `ApiClient` disappears and `FormApi`/`FormDataApi` become
+annotated interfaces.
+
+**The OpenAPI route is currently closed.** dynamic-form has no springdoc, no `openapi` and no swagger
+configuration anywhere, so there is no document to generate from. If springdoc were added to the backend,
+generating a typed client would arguably become the conventional answer and would subsume both this decision
+and much of the api-jar question below.
+
+**No HTTP-annotated interface in `dynamic-form-api`,** whichever client is used. A shared client interface only
+prevents drift if both sides use it, and the server cannot implement one annotated for a specific client
+library. It would also add that library as a compile dependency for every consumer, including the backend, and
+break the api jar's stated rule (`PrepareForJavaFXClient.md` §2: validation-api and provided Lombok, nothing
 else).
 
-**The part worth keeping** is the pattern from `microservice-example`, which does not involve Feign at all: an
-annotation-free interface in the shared module (`UserService`) with the client interface extending it
-(`UserClient extends UserService`) and adding only the HTTP mapping. Transplanted here it would mean a
-`FormOperations` interface in `dynamic-form-api`, implemented by both `FormController` and the client's
-`FormApi`, giving compile-checked agreement at zero dependency cost. One asymmetry, checked in source:
+**The annotation-free variant is still open** — the pattern from `microservice-example`, which involves no
+client library at all: an annotation-free interface in the shared module (`UserService`) with the client
+interface extending it (`UserClient extends UserService`) and adding only the HTTP mapping. Two things checked
+in source before transplanting it:
 
-- **`FormController` could implement it today** — `getForms()`, `getForm(String)`, `createForm(FormDto)`,
-  `updateForm(String, FormDto)`, `deleteForm(String)` carry no security parameters.
-- **`FormDataController` could not.** `submitForm`, `updateSubmission`, `getSubmissions` and
-  `getSubmissionById` all take `Jwt` / `Authentication` parameters, which a client interface must not have.
-  Sharing those needs the controller refactored to read the principal from `SecurityContextHolder` — a backend
-  change, which section 1 rules out for v1.
+- **In that precedent the server does not implement the shared interface either** — `UserClient` is its only
+  implementor. So the pattern buys a written-down contract and a pre-declared client interface, not
+  compile-checked server agreement. An earlier draft of this section claimed it protected both directions; that
+  was wrong.
+- Because nothing implements it server-side, the `Jwt`/`Authentication` parameters on `FormDataController` are
+  **not** a blocker: the client has no such parameters, so a shared interface can cover the full form-data
+  surface. (They would block a server-side `implements`, which is not what this is.)
+- Retrofit permits a service interface to extend another one — its `validateServiceInterface` walks the
+  hierarchy and rejects only type parameters, not inheritance — so each method just has to be re-declared with
+  its HTTP annotation, exactly the `@Override @GetMapping` shape of `UserClient`. Verified against Retrofit
+  trunk (3.0.0); re-confirm on whichever version gets pinned.
 
-So this is deferred, not adopted: it is a dynamic-form change, it is worth doing when a backend change is
-acceptable anyway, and it is tracked in section 6.
+See section 6 for how this would land, including the naming collision to avoid.
 
 ## 5. Testing strategy
 
@@ -387,9 +416,21 @@ acceptable anyway, and it is tracked in section 6.
 - `PUT /api/form-data/submission/{id}` is owner-only with **no admin escape**, so an admin can read and delete
   another user's submission but not edit it. Either the editor UI must not offer that edit, or the backend grows
   the admin case.
-- A `FormOperations` interface in the api jar, implemented by `FormController` and by the client's `FormApi`
-  (section 4.6). Zero dependency cost, compile-checked contract. `FormDataController` needs its
-  `Jwt`/`Authentication` parameters refactored out before it can join.
+- **Path and role constants in the api jar** (proposed, not yet decided). `ApiPaths.FORMS = "/api/forms"` and
+  `Roles.ADMIN` used by both the backend's annotations and the client, so paths and role names cannot drift on a
+  literal. Zero dependency cost, and it works for `FormDataController` too since paths do not touch its security
+  parameters. `PrepareForJavaFXClient.md` §2 already promises these, so it closes a gap rather than opening one.
+  Shape note: Spring splits class-level and method-level paths and annotations need compile-time constants, so
+  the jar wants both the raw templates (`FORMS = "/api/forms"`, `BY_KEY = "/{key}"`) and composing helpers
+  (`ApiPaths.form(formKey)`) for the client.
+- **Annotation-free operation interfaces in the api jar** (proposed, not yet decided; section 4.6). Value is a
+  written-down contract plus a pre-declared client interface — not compile-checked server agreement, since
+  nothing server-side would implement them.
+  **Do not call them `FormService` and `FormDataService`:** both names already exist in
+  `com.example.backend.service` as Spring `@Service` classes, and those are **entity**-based
+  (`FormService.get(String) → Form`, `FormDataService.getAll() → List<FormData>`), so they could not implement a
+  DTO-based interface of the same name anyway. Use `FormOperations` / `FormDataOperations`, or
+  `FormApi` / `FormDataApi`.
 
 ## 7. Delivery phases
 
@@ -399,7 +440,7 @@ Phases 4-7 get their own plan once those interfaces exist.
 
 | # | Phase | Output | Exit check |
 |---|-------|--------|------------|
-| 0 | Prereqs | dynamic-form side is done: all three artifacts are on Repsy at `1.0.0-SNAPSHOT` (verified 2026-10-17) and the GHCR image is public. Remaining: run `scripts/install-snapfx.sh` once. The loopback spike is dropped (4.2) | Both jars resolve from Repsy, image pulls, `org.snapfx:snapfx-core:0.8.0` is in `~/.m2` |
+| 0 | Prereqs | All three artifacts are on Repsy at `1.0.0-SNAPSHOT` (verified 2026-10-17). Remaining: run `scripts/install-snapfx.sh` once, and get the GHCR package made public — **it is still private** (see 3.2). The loopback spike is dropped (4.2) | Both jars resolve from Repsy, the image pulls without a login, `org.snapfx:snapfx-core:0.8.0` is in `~/.m2` |
 | 1 | Skeleton | Maven project, `App`, SnapFX with placeholder panes, layout save/load | App starts, layout restores |
 | 2 | Test stack | Test `oauth2-server.yaml` with `desktop-client`, JUnit helper around `DynamicFormStack`, `Launcher` | `*IT` fetches `/api/config/oauth2-issuer-uri` |
 | 3 | Auth + API | PKCE flow, `ApiClient` on api-jar DTOs, API ITs | API IT passes for admin and user |
@@ -427,8 +468,10 @@ Resolved:
 
 5. ~~Work against local snapshots until dynamic-form publishes?~~ dynamic-form is published; depend on Repsy and
    GHCR directly.
-6. ~~Feign for REST access, and should `dynamic-form-api` support it?~~ No to both, see section 4.6. The
-   annotation-free `FormOperations` interface is the surviving idea and is tracked in section 6.
+6. ~~Which HTTP client, and should `dynamic-form-api` carry an interface for it?~~ `java.net.http.HttpClient`
+   behind a hand-written `ApiClient` for v1, with Retrofit — not Feign — as the later experiment if the API
+   grows. No HTTP-annotated interface in the api jar. See section 4.6. Path/role constants and annotation-free
+   operation interfaces remain proposed in section 6.
 7. ~~Loopback redirect: dynamic port or fixed?~~ Fixed `http://localhost:8123/callback`, matching the
    registration dynamic-form already publishes, see section 4.2.
 8. ~~SnapFX while it is off Maven Central: clone-and-build, vendored jar, or wait?~~ Install the GitHub release
