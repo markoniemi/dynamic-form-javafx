@@ -30,8 +30,9 @@ Authentication comes from [oauth2-server](../../oauth2-server), but indirectly: 
 `dynamic-form-testcontainers`, so this project does not declare it. When changing anything that touches the
 backend or the auth server, verify against the real containers, especially:
 
-- JWT claims, scopes and roles. The claim is `roles` with **bare** values (`ADMIN`, `USER`); the `ROLE_` prefix
-  is added server-side.
+- JWT claims, scopes and roles. The claim is `roles`, and the auth server mints the values **already
+  prefixed** (`ROLE_ADMIN`, `ROLE_USER`). The backend's converter passes a prefixed value through unchanged, so
+  either form is possible; `AuthSession` strips the prefix and exposes bare names.
 - OIDC discovery and JWKS endpoints. The auth server runs on **fixed host port 9000** with issuer
   `http://localhost:9000`, because the `iss` claim must match what the backend expects.
 - The `desktop-client` registration: public client, PKCE required, redirect URI **`http://localhost:8123/callback`**

@@ -1,0 +1,83 @@
+package com.example.desktop.auth;
+
+import com.example.desktop.api.Roles;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/**
+ * A logged-in user: the access token, and the roles read out of it.
+ *
+ * <p>The token is held in memory only and is not persisted. The authorization server issues no
+ * refresh token to a public client, so a restart means logging in again.
+ */
+public class AuthSession {
+
+  private final String accessToken;
+  private final Set<String> roles;
+
+  AuthSession(String accessToken, Set<String> roles) {
+    this.accessToken = accessToken;
+    this.roles = Set.copyOf(roles);
+  }
+
+  public String accessToken() {
+    return accessToken;
+  }
+
+  /** Bare role names from the token's {@code roles} claim, e.g. {@code ADMIN}. */
+  public Set<String> roles() {
+    return roles;
+  }
+
+  /**
+   * Whether to offer the admin-only parts of the UI. This is a display decision only — every
+   * admin endpoint is enforced by the backend, which is the authority.
+   */
+  public boolean isAdmin() {
+    return roles.contains(Roles.ADMIN);
+  }
+
+  private static final String ROLE_PREFIX = "ROLE_";
+
+  /**
+   * Reads the roles from a JWT's payload.
+   *
+   * <p>The signature is deliberately <strong>not</strong> verified: this client never makes a trust
+   * decision on the token's contents, it only decides which buttons to show, and the backend
+   * re-validates every request. Verifying here would mean shipping the server's keys and gain
+   * nothing.
+   *
+   * <p>Values are normalised to bare names. The oauth2-server image mints {@code roles} already
+   * carrying the {@code ROLE_} prefix, and the backend's own converter accepts either form, so
+   * neither can be relied on — stripping it here makes {@link #roles()} mean one thing whichever
+   * the server sends.
+   */
+  static AuthSession fromToken(String accessToken, ObjectMapper mapper) {
+    Set<String> roles = new LinkedHashSet<>();
+    String[] parts = accessToken.split("\\.");
+    if (parts.length >= 2) {
+      try {
+        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        JsonNode claims = mapper.readTree(new String(payload, StandardCharsets.UTF_8));
+        for (String claim : new String[] {"roles", "cognito:groups"}) {
+          for (JsonNode role : claims.path(claim)) {
+            roles.add(stripPrefix(role.asText()));
+          }
+        }
+      } catch (Exception e) {
+        // An unreadable payload only costs the user the admin UI, so start without roles rather
+        // than failing a login that the server accepted.
+        roles.clear();
+      }
+    }
+    return new AuthSession(accessToken, roles);
+  }
+
+  private static String stripPrefix(String role) {
+    return role.startsWith(ROLE_PREFIX) ? role.substring(ROLE_PREFIX.length()) : role;
+  }
+}

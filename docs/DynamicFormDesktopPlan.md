@@ -61,9 +61,13 @@ Seeded forms, safe for tests: `contact` ("Contact Us"), `feedback` ("Product Fee
 ("Customer Satisfaction Survey"). Only `feedback` has both a `date` field (`purchaseDate`) and a `checkbox`
 field (`features`, 4 options).
 
-Roles come from the `roles` claim with **bare** values (`ADMIN`, `USER`); `RoleClaimsConverter` adds the
-`ROLE_` prefix server-side, and also accepts `cognito:groups`. The client reads the same claim from the token to
-show or hide admin actions; the server stays the authority.
+Roles come from the `roles` claim, and `RoleClaimsConverter` also accepts `cognito:groups`. **The oauth2-server
+image mints the values already prefixed — `ROLE_ADMIN`, `ROLE_USER` — not bare.** Verified against the real
+token in `PkceLoginFlowIT`; an earlier draft of this section said bare, inferred from the server's
+`app.security.users[].roles: [USER, ADMIN]` config, which is not what ends up in the JWT. The backend's
+converter passes an already-prefixed value through unchanged, so either form is possible and a client must
+tolerate both: `AuthSession` strips the prefix and exposes bare names. The client reads the claim only to show
+or hide admin actions; the server stays the authority.
 
 ## 3. Decision: copy the backend or use published artifacts?
 

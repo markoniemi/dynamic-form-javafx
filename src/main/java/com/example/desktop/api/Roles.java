@@ -1,13 +1,14 @@
 package com.example.desktop.api;
 
 /**
- * Role names.
+ * Role names, in the bare form the client works with.
  *
- * <p>The JWT's {@code roles} claim carries <em>bare</em> values; the backend's
- * {@code RoleClaimsConverter} adds the {@code ROLE_} prefix on its side. So a client inspecting a
- * token compares against {@link #ADMIN}, while {@link #ROLE_ADMIN} is what the server's authorities
- * and {@code @PreAuthorize} expressions look like — useful only when reading the backend's own
- * messages.
+ * <p>The JWT's {@code roles} claim is not dependable on this point: the oauth2-server image mints
+ * values already carrying the {@code ROLE_} prefix, while the backend's {@code RoleClaimsConverter}
+ * adds the prefix only when it is missing, so both forms are valid. {@code AuthSession} normalises
+ * to the bare name, and that is what {@link #ADMIN} and {@link #USER} are for. {@link #ROLE_ADMIN}
+ * is the authority the backend's {@code @PreAuthorize} expressions use — useful only when reading
+ * the backend's own messages.
  */
 public final class Roles {
 
