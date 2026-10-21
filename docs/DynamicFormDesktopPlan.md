@@ -439,8 +439,13 @@ See section 6 for how this would land, including the naming collision to avoid.
 ## 7. Delivery phases
 
 Phases 0-3 are specified task-by-task in
-[docs/superpowers/plans/2026-10-19-desktop-foundation.md](superpowers/plans/2026-10-19-desktop-foundation.md).
-Phases 4-7 get their own plan once those interfaces exist.
+[docs/superpowers/plans/2026-10-19-desktop-foundation.md](superpowers/plans/2026-10-19-desktop-foundation.md)
+and are **done** — that plan's *Outcome and follow-up work* section records what the review changed, what is
+still unverified, and twelve deferred minor findings.
+
+Phases 4-6 are specified in
+[docs/superpowers/plans/2026-10-21-desktop-panes.md](superpowers/plans/2026-10-21-desktop-panes.md). Phase 7
+gets its own plan.
 
 | # | Phase | Output | Exit check |
 |---|-------|--------|------------|
