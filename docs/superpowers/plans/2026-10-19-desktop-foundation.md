@@ -1096,8 +1096,22 @@ All eight tasks were executed (commits `1a7a00c`..`028586a` on `main`). `mvn cle
   run showed the editor in a quarter-width strip beside the list. Now fill is RIGHT of list, submissions BOTTOM
   of fill, and the editor is tabbed (CENTER) with fill. **No automated test** — JavaFX wiring.
 
-I1 and I3 are verified only by compilation and inspection. They are precisely what the manual launch step
-(Task 8 step 7) would have caught; that step was never performed and remains outstanding.
+I1 and I3 have no automated test, so Task 8's manual launch step (step 7) is their only verification.
+
+**Launch verified by hand on 2026-10-21.** `Launcher` brought up all three containers and the desktop UI; the
+four panes rendered with their placeholder names; the layout matched section 4.4 (Forms left, Form centre,
+Submissions below Form); and the Editor pane appeared for `admin`. That confirms the I3 arrangement fix and the
+admin role gating, which were the two shipped-without-a-test changes.
+
+Still unverified by anyone:
+
+- Layout persistence across a restart — move a pane, exit, relaunch, expect it where you left it.
+- The Editor pane being **absent** for a non-admin (`user`/`user`). The admin case is confirmed; the negative
+  case, including `hideEditorFromNonAdmins` stripping the pane from a layout saved by an admin, is not.
+- The C1 recovery path — close all four panes, exit, relaunch, expect the default layout rather than a blank
+  window. The unit tests cover `LayoutStore`'s half; the SnapFX half is covered only by the reviewer's probe.
+- I1's error paths: a busy port 8123, or a cancelled login, should now reach an `Alert` rather than killing the
+  process silently.
 
 ### Deferred minor findings
 
