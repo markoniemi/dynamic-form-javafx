@@ -6,11 +6,12 @@ import com.example.desktop.api.FormDataApi;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.BrowserLauncher;
 import com.example.desktop.auth.PkceLoginFlow;
-import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.dock.DockLayoutManager;
 import com.example.desktop.ui.dock.LayoutStore;
+import com.example.desktop.ui.data.SubmissionsPane;
+import com.example.desktop.ui.forms.FormEditorPane;
 import com.example.desktop.ui.forms.FormFillPane;
 import com.example.desktop.ui.forms.FormListPane;
 import com.example.dynamicform.api.FormDto;
@@ -84,6 +85,12 @@ public class App extends Application {
 
     FormListPane list = new FormListPane(formApi, state);
     FormFillPane fill = new FormFillPane(dataApi, state);
+    SubmissionsPane submissions = new SubmissionsPane(dataApi, formApi, state);
+    FormEditorPane editor = state.admin().get() ? new FormEditorPane(formApi, state) : null;
+    if (editor != null) {
+      // A created or renamed form changes what the list should show.
+      editor.setOnSaved(saved -> list.refresh());
+    }
     // The panes never see each other: a selection published to AppState is what loads the form,
     // and the fetch runs off the FX thread.
     state
@@ -99,17 +106,16 @@ public class App extends Application {
                 switch (nodeId) {
                   case DockLayoutManager.FORM_LIST -> list;
                   case DockLayoutManager.FORM_FILL -> fill;
-                  // Replaced by the real panes in the tasks that add them.
-                  case DockLayoutManager.SUBMISSIONS -> new Label(
-                      Messages.get("submissions.noSubmissions"));
-                  case DockLayoutManager.FORM_EDITOR ->
-                      state.admin().get() ? new Label(Messages.get("editForm.title")) : null;
+                  case DockLayoutManager.SUBMISSIONS -> submissions;
+                  // Null for a non-admin, which is how the editor stays out of the layout.
+                  case DockLayoutManager.FORM_EDITOR -> editor;
                   default -> null;
                 });
 
     stage.setTitle("Dynamic Form Desktop" + (session.isAdmin() ? " (admin)" : ""));
     stage.getScene().setRoot(layout.build(stage));
     list.refresh();
+    submissions.refresh();
   }
 
   private static void loadForm(FormApi formApi, FormFillPane fill, String formKey) {
