@@ -1,0 +1,19 @@
+# Layered over the auth server's bundled defaults by DynamicFormStack.withAuthConfigFile.
+# Maps merge by key, so the default users (admin/admin, user/user) survive; lists replace, which is
+# why there is deliberately no `users` list here and why redirect-uris must name every URI.
+# The redirect URI has to match the client's own exactly, or the token exchange is rejected.
+spring:
+  security:
+    oauth2:
+      authorizationserver:
+        client:
+          desktop-client:
+            registration:
+              client-id: desktop-client
+              client-authentication-methods: [none]
+              authorization-grant-types: [authorization_code]
+              redirect-uris: [http://localhost:8123/callback]
+              scopes: [openid, profile, email]
+            require-proof-key: true
+            token:
+              access-token-time-to-live: 1h
