@@ -1068,3 +1068,55 @@ Expected: all unit tests and all `*IT` pass from a clean checkout, given Docker 
 - `-SNAPSHOT` for `dynamic-form.version` means the build is not reproducible. Pin a release before the first installer build (spec open question 4).
 - Retrofit is the agreed later experiment for the HTTP layer (spec section 4.6). It is contained to Tasks 4 and 6: `ApiClient` disappears, and `FormApi`/`FormDataApi` become annotated interfaces. Everything else — the mapper, the error types, the stack fixture, the login flow — is unaffected, so the switch does not need a new plan.
 - Path and role constants, and annotation-free `FormOperations`/`FormDataOperations` interfaces, in `dynamic-form-api` are **proposed but not decided** (spec section 6). Both are dynamic-form changes, so they are out of scope here. Task 3 therefore defines `ApiPaths` and `Roles` in `com.example.desktop.api`; if the jar later ships them, that task's classes are deleted and the imports change. Note the api jar's versions must not be named `FormService`/`FormDataService` — those names are taken by entity-based Spring services in the backend.
+
+---
+
+## Outcome and follow-up work
+
+All eight tasks were executed (commits `1a7a00c`..`028586a` on `main`). `mvn clean verify` passes from clean with
+34 unit tests and 14 integration tests, and every pushed commit has a green GitHub Actions run.
+
+### Fixed after the whole-branch review
+
+- **C1 — a user could brick their own install with four clicks.** SnapFX serializes a graph whose panes have
+  all been closed as exactly `{}`, and `loadLayout` accepts that silently instead of throwing. The app then
+  treated it as a successful restore, docked nothing, and saved the empty graph on exit — so every later launch
+  was blank, with no in-app way back. All four panes are closeable by default, so this needed no file editing.
+  `LayoutStore` now refuses to load or persist a layout with no panes, and `DockLayoutManager` falls back to the
+  defaults when a loaded graph has no root. Covered by three `LayoutStoreTest` cases.
+- **I1 — the whole login ran on the FX thread inside `App.start()`,** so a busy port 8123, a cancelled consent
+  screen or an unreachable backend killed the process with only a stderr trace, which a `jpackage` build never
+  shows. Every carefully worded error message in the auth layer was unreachable. The stage now appears first,
+  login runs in a daemon `Task`, and failures surface in an `Alert`. **No automated test** — JavaFX wiring.
+- **I2 — no connect or request timeout on either `HttpClient`,** so a backend that accepts a connection and
+  never answers parked the caller indefinitely. Now 10s connect and 30s request, with a package-private
+  constructor seam so a test can shorten it. Covered by `ApiClientTest`.
+- **I3 — the default layout did not match section 4.4.** Every pane was docked relative to the list, and
+  docking twice to the list's RIGHT splits the list's own cell rather than adding a column, so an admin's first
+  run showed the editor in a quarter-width strip beside the list. Now fill is RIGHT of list, submissions BOTTOM
+  of fill, and the editor is tabbed (CENTER) with fill. **No automated test** — JavaFX wiring.
+
+I1 and I3 are verified only by compilation and inspection. They are precisely what the manual launch step
+(Task 8 step 7) would have caught; that step was never performed and remains outstanding.
+
+### Deferred minor findings
+
+Reviewed, judged minor by effect, and deliberately not fixed. Roughly in the order worth doing.
+
+| # | Where | Issue |
+|---|-------|-------|
+| m7 | `.github/workflows/maven-build.yaml` | The GHCR login step is redundant now the package is public, and would fail a pull request from a fork, where secrets are empty. Delete it |
+| m5 | `AuthSessionTest:44` | `anUnreadableTokenYieldsNoRolesRatherThanFailingTheLogin` calls the constructor, not `fromToken`, so the catch block it is named for never runs — the test would pass if that block rethrew. The real path was checked by hand and is correct. Assert on `fromToken` with a three-part token whose payload is not base64 |
+| m2 | `PkceLoginFlow:60-61,122` | `authorization_endpoint`, `token_endpoint` and `access_token` are read with unguarded `get()`, so a malformed metadata or token document gives a bare NPE instead of a named reason. Use `path(...)` + `isMissingNode()` |
+| m1 | `LoopbackCallbackServer:103-124` | The future completes before the response is flushed and `close()` uses `stop(0)`, which does not drain in-flight exchanges — so on the error paths the browser usually shows a connection reset rather than the "Sign-in failed" page. Complete the future after flushing, or `stop(1)` |
+| m4 | `ApiPaths:21-33` | `form()`/`formData()` do not URL-encode the key. Harmless while keys match `^[a-z0-9-]+$`, but a live bug as soon as `FormEditorPane` lets an admin type one: a space throws `IllegalArgumentException` from `URI.create`, and `#` or `?` silently truncates |
+| m9 | `StackFixture:21-32` | A failed start is not cached, so a Docker problem repeats the three-container start (2-minute health wait) for every IT class. Also streams backend logs unconditionally, where the spec suggests logs on failure |
+| m3 | `ApiException:40-48` | When a problem document parses but `detail` is blank, the `errors` list is discarded and the raw JSON becomes the message. Unreachable against this backend, which always sets `detail` |
+| m6 | `LoopbackCallbackServerTest:52-60` | Both catch branches name the port, so asserting only `contains(port)` cannot distinguish the friendly "already in use" message from the generic fallback. Also assert on the text |
+| m8 | `scripts/install-snapfx.sh:16-18` | The `.sha256` comes from the same release as the jar it validates, so it catches transfer corruption but not a replaced asset. Hard-code the digest to make the integrity claim in spec 4.4 true |
+| m11 | `DockLayoutManager:108-111` | The javadoc says SnapFX drops a node with an unknown id. It substitutes a placeholder node carrying a message — better behaviour, but not what the comment says |
+| m12 | nine files | Lines exceed the 100-column limit the project's review skill mandates. Run google-java-format |
+| m13 | `Launcher:14-17` | The documented `exec:java` command relies on `exec-maven-plugin`, which the pom neither declares nor pins, so it resolves whatever is latest |
+
+`m10` (an exception from `saveLayout()` in `stop()` producing a crash trace at exit) was fixed in passing as
+part of I1.
