@@ -108,6 +108,31 @@ class SubmissionsIT extends UiTest {
 
     waitUntil(() -> fxValue(() -> pane.editControlFor("name")) != null);
     assertEquals("SubmissionsIT", fxValue(() -> pane.editControlFor("name").value()));
+    assertTrue(fxValue(pane::editing), "the edit view has to be on screen to be of any use");
+  }
+
+  @Test
+  void savingAnEditKeepsStoredValuesThisFormCanNoLongerRender() {
+    // The backend replaces `data` wholesale, so anything missing from the PUT body is deleted for
+    // good. A field renamed after this submission was made must not cost the user that answer.
+    FormDataApi api = dataApi("user", "user");
+    Map<String, Object> stale = new LinkedHashMap<>(contactValues());
+    stale.put("removedField", "orphan");
+    FormDataDto saved = api.submit("contact", stale);
+    SubmissionsPane pane = pane("user", "user");
+    onFx(pane::refresh);
+    waitUntil(() -> fxValue(pane::rows).stream().anyMatch(d -> d.getId().equals(saved.getId())));
+
+    onFx(() -> pane.openForEdit(saved.getId()));
+    waitUntil(() -> fxValue(() -> pane.editControlFor("name")) != null);
+    onFx(() -> pane.editorPane().setValues(Map.of("name", "Edited")));
+    onFx(() -> pane.editorPane().submit());
+
+    waitUntil(() -> "Edited".equals(api.get(saved.getId()).getData().get("name")));
+    assertEquals(
+        "orphan",
+        api.get(saved.getId()).getData().get("removedField"),
+        "an orphaned stored value must survive an edit of the fields that remain");
   }
 
   private static Map<String, Object> contactValues() {

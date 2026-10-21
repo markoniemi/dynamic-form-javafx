@@ -47,8 +47,9 @@ public final class FieldControlFactory {
       case "radio" -> radio(field);
       case "checkbox" -> checkbox(field);
       // Not an error: a newer backend may serve a type this build predates, and one unrenderable
-      // field must not blank the rest of the form.
-      default -> unknown(field);
+      // field must not blank the rest of the form. Null is in here too — the backend declares
+      // type @NotBlank, but a non-conforming server must still degrade rather than throw.
+      case null, default -> unknown(field);
     };
   }
 
@@ -290,9 +291,20 @@ public final class FieldControlFactory {
           .toList();
     }
 
+    /**
+     * Accepts a list, and also a bare value: the React client stores a one-option checkbox as the
+     * option's value string (or {@code false}), so a submission made there would otherwise open
+     * with the box clear and lose that answer on save.
+     */
     @Override
     public void setValue(Object value) {
-      Collection<?> selected = value instanceof Collection<?> c ? c : List.of();
+      Collection<?> selected =
+          switch (value) {
+            case null -> List.of();
+            case Collection<?> collection -> collection;
+            case Boolean ignored -> List.of();
+            default -> List.of(value);
+          };
       List<String> wanted = selected.stream().map(String::valueOf).toList();
       boxes.forEach(check -> check.setSelected(wanted.contains(String.valueOf(check.getUserData()))));
     }

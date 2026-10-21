@@ -1,6 +1,7 @@
 package com.example.desktop.it;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -32,14 +33,27 @@ class ShellIT extends UiTest {
   void aLayoutSurvivesSaveAndReload() {
     LayoutStore store = new LayoutStore(layoutDir.resolve("layout.json"));
 
-    String first =
+    // The saved layout must differ from the defaults, or the assertion passes either way: a
+    // restore that silently failed would fall back to dockDefaults() and produce the same shape.
+    String rearranged =
         onFx(
             () -> {
               DockLayoutManager manager = manager(store, adminState());
               manager.build(freshStage());
+              manager.close(manager.nodeById(DockLayoutManager.SUBMISSIONS));
               return manager.currentLayout();
             });
-    store.save(first);
+    String defaults =
+        onFx(
+            () -> {
+              DockLayoutManager manager = manager(new LayoutStore(layoutDir.resolve("x.json")), adminState());
+              manager.build(freshStage());
+              return manager.currentLayout();
+            });
+    assertNotEquals(
+        structureOf(defaults), structureOf(rearranged), "the fixture must not be the default layout");
+
+    store.save(rearranged);
     String reloaded =
         onFx(
             () -> {
@@ -48,7 +62,7 @@ class ShellIT extends UiTest {
               return manager.currentLayout();
             });
 
-    assertEquals(structureOf(first), structureOf(reloaded));
+    assertEquals(structureOf(rearranged), structureOf(reloaded));
   }
 
   /**

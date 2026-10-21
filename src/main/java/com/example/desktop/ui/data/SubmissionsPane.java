@@ -46,7 +46,10 @@ public class SubmissionsPane extends BorderPane {
   private final BusyOverlay busy = new BusyOverlay();
   private final Button editButton = new Button(Messages.get("submissions.table.edit"));
   private final Button deleteButton = new Button(Messages.get("submissions.table.delete"));
+  private final Button backButton = new Button(Messages.get("editForm.backToForms"));
   private final FormFillPane editor;
+  private final StackPane tableView;
+  private final BorderPane editorView;
 
   private boolean filterBySelectedForm;
 
@@ -77,10 +80,19 @@ public class SubmissionsPane extends BorderPane {
     state.selectedFormKey().addListener((obs, old, key) -> applyFilter());
     updateActions();
 
+    backButton.setOnAction(event -> showTable());
+    // The editor replaces the table rather than sitting in a hidden corner: before this, clicking
+    // Edit populated a pane that was never in the scene graph, so the action did nothing visible.
+    tableView = new StackPane(table, busy);
+    editorView = new BorderPane(editor);
+    editorView.setTop(new ToolBar(backButton));
+
     setTop(banner);
-    setCenter(new StackPane(table, busy));
+    setCenter(tableView);
     setBottom(new ToolBar(refresh, editButton, deleteButton));
     BorderPane.setMargin(table, new Insets(0));
+    // A saved edit returns to the list, which the selectedSubmission listener has already refreshed.
+    editor.setOnSaved(saved -> showTable());
   }
 
   private TableColumn<FormDataDto, String> column(
@@ -168,9 +180,19 @@ public class SubmissionsPane extends BorderPane {
     return editor.controlFor(fieldName);
   }
 
-  /** The pane holding the submission being edited, for a caller that wants to show it. */
+  /** The pane holding the submission being edited. */
   public FormFillPane editorPane() {
     return editor;
+  }
+
+  /** Whether the edit view is showing rather than the table. */
+  public boolean editing() {
+    return getCenter() == editorView;
+  }
+
+  /** Returns to the list, abandoning any unsaved edit. */
+  public void showTable() {
+    setCenter(tableView);
   }
 
   /** Opens a submission for editing, loading its form definition off the FX thread. */
@@ -200,8 +222,10 @@ public class SubmissionsPane extends BorderPane {
         event -> {
           busy.setBusy(false);
           // Values whose fields the form no longer declares are ignored by the fill pane rather
-          // than rejected, so a renamed field does not stop the submission from opening.
+          // than rejected, and it keeps them for the update, so a renamed field neither stops the
+          // submission from opening nor gets deleted when it is saved.
           editor.editSubmission(load.getValue(), submission);
+          setCenter(editorView);
         });
     load.setOnFailed(
         event -> {

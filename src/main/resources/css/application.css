@@ -1,0 +1,24 @@
+/*
+ * Without this the error style class FieldControl adds has no visual effect at all, and a rejected
+ * form looks identical to an accepted one. App attaches this to the scene.
+ */
+.field-error {
+  -fx-border-color: #c0392b;
+  -fx-border-width: 2;
+  -fx-border-radius: 3;
+}
+
+.error-banner {
+  -fx-background-color: #fdecea;
+  -fx-border-color: #c0392b;
+  -fx-border-width: 0 0 1 0;
+  -fx-padding: 8;
+}
+
+.error-banner .label {
+  -fx-text-fill: #7b241c;
+}
+
+.busy-overlay {
+  -fx-background-color: rgba(255, 255, 255, 0.75);
+}

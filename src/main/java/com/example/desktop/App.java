@@ -6,6 +6,7 @@ import com.example.desktop.api.FormDataApi;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.BrowserLauncher;
 import com.example.desktop.auth.PkceLoginFlow;
+import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.dock.DockLayoutManager;
@@ -53,7 +54,11 @@ public class App extends Application {
     // user has to be told. Throwing out of start() only produces a stack trace on stderr, which in
     // a jpackage build nobody ever sees.
     stage.setTitle("Dynamic Form Desktop");
-    stage.setScene(new Scene(status("Signing in — complete the login in your browser…"), 1100, 750));
+    Scene scene = new Scene(status("Signing in — complete the login in your browser…"), 1100, 750);
+    // Without this the error style class the field controls add has no visual effect, so a
+    // rejected form would look exactly like an accepted one.
+    scene.getStylesheets().add(App.class.getResource("/css/application.css").toExternalForm());
+    stage.setScene(scene);
     stage.show();
 
     Task<AuthSession> login =
@@ -95,7 +100,7 @@ public class App extends Application {
     // and the fetch runs off the FX thread.
     state
         .selectedFormKey()
-        .addListener((obs, old, formKey) -> loadForm(formApi, fill, formKey));
+        .addListener((obs, old, formKey) -> loadForm(formApi, fill, editor, formKey));
 
     layout =
         new DockLayoutManager(
@@ -117,7 +122,8 @@ public class App extends Application {
     submissions.refresh();
   }
 
-  private static void loadForm(FormApi formApi, FormFillPane fill, String formKey) {
+  private static void loadForm(
+      FormApi formApi, FormFillPane fill, FormEditorPane editor, String formKey) {
     if (formKey == null || formKey.isBlank()) {
       return;
     }
@@ -128,7 +134,24 @@ public class App extends Application {
             return formApi.get(formKey);
           }
         };
-    load.setOnSucceeded(event -> fill.show(load.getValue()));
+    load.setOnSucceeded(
+        event -> {
+          fill.show(load.getValue());
+          if (editor != null) {
+            // An admin selecting a form gets it loaded for editing too, which is the only route to
+            // updating or deleting an existing definition.
+            editor.edit(load.getValue());
+          }
+        });
+    load.setOnFailed(
+        event -> {
+          // Most often a form deleted since the list was last refreshed. Without this the click
+          // would do nothing at all and leave the previous form on screen as if it had worked.
+          Throwable cause = load.getException();
+          fill.show(null);
+          fill.showMessage(
+              cause == null ? Messages.get("common.error") : String.valueOf(cause.getMessage()));
+        });
     Thread thread = new Thread(load, "load-form");
     thread.setDaemon(true);
     thread.start();

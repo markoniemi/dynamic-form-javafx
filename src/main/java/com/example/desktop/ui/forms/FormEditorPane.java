@@ -6,6 +6,7 @@ import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
 import com.example.desktop.ui.common.ErrorBanner;
+import com.example.desktop.ui.field.FieldControl;
 import com.example.dynamicform.api.FieldDto;
 import com.example.dynamicform.api.FieldOptionDto;
 import com.example.dynamicform.api.FormDto;
@@ -171,6 +172,9 @@ public class FormEditorPane extends BorderPane {
   /** Creates or updates the form, off the FX thread. */
   public void save() {
     banner.clear();
+    // Clear last attempt's marks, or a corrected field stays flagged after a successful save.
+    formKey.getStyleClass().remove(FieldControl.ERROR_STYLE_CLASS);
+    title.getStyleClass().remove(FieldControl.ERROR_STYLE_CLASS);
     FormDto definition = collect();
     String existing = editingKey;
 
@@ -250,8 +254,8 @@ public class FormEditorPane extends BorderPane {
       TextField field = error.getField() == null ? null : placeable.get(error.getField());
       if (field == null) {
         unplaced.add(error);
-      } else {
-        field.getStyleClass().add("field-error");
+      } else if (!field.getStyleClass().contains(FieldControl.ERROR_STYLE_CLASS)) {
+        field.getStyleClass().add(FieldControl.ERROR_STYLE_CLASS);
       }
     }
     if (!unplaced.isEmpty()) {

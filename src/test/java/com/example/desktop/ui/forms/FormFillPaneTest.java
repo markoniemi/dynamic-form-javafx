@@ -1,7 +1,10 @@
 package com.example.desktop.ui.forms;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.state.AppState;
@@ -90,6 +93,55 @@ class FormFillPaneTest extends UiTest {
                     .node()
                     .getStyleClass()
                     .contains(FieldControl.ERROR_STYLE_CLASS)));
+  }
+
+  @Test
+  void aClientSideRejectionAlsoSaysSomethingInTheBanner() {
+    // Marking the control is not enough on its own: the style class needs a stylesheet to show,
+    // and a tooltip needs hovering. Without a banner line the Submit button looks simply dead —
+    // and since the backend validates no submission data, this is the only validation there is.
+    FormFillPane pane = onFx(() -> new FormFillPane(null, new AppState()));
+    onFx(() -> pane.show(formWith(requiredField("name", "text"))));
+
+    onFx(pane::submit);
+
+    assertFalse(fxValue(pane::bannerText).isBlank(), "a rejected submit must say why");
+  }
+
+  @Test
+  void correctingAFieldClearsItsMessageAsWellAsItsMark() {
+    FormFillPane pane = onFx(() -> new FormFillPane(null, new AppState()));
+    onFx(() -> pane.show(formWith(requiredField("name", "text"))));
+    onFx(pane::submit);
+
+    onFx(() -> pane.setValues(Map.of("name", "filled")));
+    onFx(pane::submit);
+
+    assertTrue(
+        fxValue(() -> pane.controlFor("name").node().getStyleClass()).stream()
+            .noneMatch(FieldControl.ERROR_STYLE_CLASS::equals),
+        "the mark must not survive a correction");
+    assertNull(
+        fxValue(() -> pane.controlFor("name").node().getProperties().get("javafx.scene.control.Tooltip")),
+        "nor may a stale tooltip");
+  }
+
+  @Test
+  void anUnknownFieldTypeDoesNotBlockSubmitOrBlankThePane() {
+    // A null type is the shape a non-conforming server produces; it must degrade, not throw.
+    FormFillPane pane = onFx(() -> new FormFillPane(null, new AppState()));
+
+    assertDoesNotThrow(
+        () ->
+            onFx(
+                () ->
+                    pane.show(
+                        formWith(
+                            FieldDto.builder().name("odd").label("Odd").type(null).build(),
+                            field("aText", "text")))));
+
+    assertNotNull(fxValue(() -> pane.controlFor("aText")), "the rest of the form must still render");
+    assertFalse(fxValue(pane::collect).containsKey("odd"));
   }
 
   @Test

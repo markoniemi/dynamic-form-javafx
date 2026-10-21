@@ -67,6 +67,13 @@ public class DockLayoutManager {
     return element instanceof DockNode node ? node : null;
   }
 
+  /** Removes one docked pane, as a user does with its close button. */
+  public void close(DockNode node) {
+    if (node != null) {
+      snapFX.remove(node);
+    }
+  }
+
   /**
    * Removes every docked pane, as a user does by clicking each close button. Exists so the
    * blank-layout recovery path can be tested rather than only reasoned about.

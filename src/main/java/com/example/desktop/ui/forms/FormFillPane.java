@@ -51,6 +51,7 @@ public class FormFillPane extends BorderPane {
 
   private FormDto form;
   private Long editingSubmissionId;
+  private Map<String, Object> editingOriginalData = Map.of();
   private Consumer<FormDataDto> onSaved = saved -> {};
 
   public FormFillPane(FormDataApi api, AppState state) {
@@ -74,6 +75,7 @@ public class FormFillPane extends BorderPane {
   public void show(FormDto form) {
     this.form = form;
     this.editingSubmissionId = null;
+    this.editingOriginalData = Map.of();
     banner.clear();
     controls.clear();
     fields.getChildren().clear();
@@ -96,8 +98,17 @@ public class FormFillPane extends BorderPane {
   public void editSubmission(FormDto form, FormDataDto submission) {
     show(form);
     this.editingSubmissionId = submission.getId();
+    // Kept so an update does not drop stored answers this form can no longer render: the backend
+    // replaces `data` wholesale, so anything missing from the PUT body is deleted for good.
+    this.editingOriginalData =
+        submission.getData() == null ? Map.of() : Map.copyOf(submission.getData());
     setValues(submission.getData());
     submitButton.setText(Messages.get("form.update"));
+  }
+
+  /** Shows a message without a form, for a caller that could not load one. */
+  public void showMessage(String message) {
+    banner.show(message);
   }
 
   /** Called with the saved submission after a successful submit or update. */
@@ -138,7 +149,10 @@ public class FormFillPane extends BorderPane {
    * build does not recognise is left out entirely rather than sent as an empty value.
    */
   public Map<String, Object> collect() {
-    Map<String, Object> data = new LinkedHashMap<>();
+    // When editing, start from what was stored. The backend replaces `data` wholesale, so a key
+    // this form no longer declares — a renamed field, or one whose type this build cannot render —
+    // would be deleted from the database by an otherwise innocent save.
+    Map<String, Object> data = new LinkedHashMap<>(editingOriginalData);
     controls.forEach(
         (name, control) -> {
           if (control.submittable()) {
@@ -159,6 +173,9 @@ public class FormFillPane extends BorderPane {
     List<ValidationErrorDto> problems = validate();
     if (!problems.isEmpty()) {
       showErrors(problems);
+      // Marking the controls is not enough: the mark is a style class and the reason is a tooltip,
+      // so without this the button would look simply dead to anyone not hovering the right field.
+      banner.showAll(problems);
       return;
     }
 
@@ -177,7 +194,7 @@ public class FormFillPane extends BorderPane {
         };
     call.setOnSucceeded(
         event -> {
-          busy.setBusy(false);
+          setBusy(false);
           banner.show(
               Messages.get(submissionId == null ? "form.success" : "form.updateSuccess"));
           // Published rather than pushed: the submissions pane listens for this, so neither pane
@@ -187,14 +204,21 @@ public class FormFillPane extends BorderPane {
         });
     call.setOnFailed(
         event -> {
-          busy.setBusy(false);
+          setBusy(false);
           report(call.getException());
         });
 
-    busy.setBusy(true);
+    // Disabled for the duration: the overlay only covers the centre, so without this two clicks
+    // would create two submissions.
+    setBusy(true);
     Thread thread = new Thread(call, "submit-" + formKey);
     thread.setDaemon(true);
     thread.start();
+  }
+
+  private void setBusy(boolean working) {
+    busy.setBusy(working);
+    submitButton.setDisable(working || form == null);
   }
 
   /** Client-side checks only. Anything subtler is the server's call. */
@@ -222,7 +246,7 @@ public class FormFillPane extends BorderPane {
         problems.add(
             new ValidationErrorDto(
                 field.getName(),
-                Messages.format("form.required", field.getLabel()),
+                Messages.format("form.invalidEmail", field.getLabel()),
                 "Email"));
       }
     }
