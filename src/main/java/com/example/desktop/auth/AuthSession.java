@@ -18,14 +18,27 @@ public class AuthSession {
 
   private final String accessToken;
   private final Set<String> roles;
+  private final String username;
 
-  AuthSession(String accessToken, Set<String> roles) {
+  AuthSession(String accessToken, Set<String> roles, String username) {
     this.accessToken = accessToken;
     this.roles = Set.copyOf(roles);
+    this.username = username;
   }
 
   public String accessToken() {
     return accessToken;
+  }
+
+  /**
+   * Who the backend considers the owner of anything this session submits.
+   *
+   * <p>Read from {@code preferred_username}, falling back to {@code sub}, which mirrors the
+   * backend's {@code SecurityUtils}. If that rule ever changes server-side this must follow, or the
+   * client will offer edits the server rejects.
+   */
+  public String username() {
+    return username;
   }
 
   /** Bare role names from the token's {@code roles} claim, e.g. {@code ADMIN}. */
@@ -62,6 +75,7 @@ public class AuthSession {
    */
   public static AuthSession fromToken(String accessToken, ObjectMapper mapper) {
     Set<String> roles = new LinkedHashSet<>();
+    String username = "";
     String[] parts = accessToken.split("\\.");
     if (parts.length >= 2) {
       try {
@@ -72,13 +86,15 @@ public class AuthSession {
             roles.add(stripPrefix(role.asText()));
           }
         }
+        username = claims.path("preferred_username").asText(claims.path("sub").asText(""));
       } catch (Exception e) {
         // An unreadable payload only costs the user the admin UI, so start without roles rather
         // than failing a login that the server accepted.
         roles.clear();
+        username = "";
       }
     }
-    return new AuthSession(accessToken, roles);
+    return new AuthSession(accessToken, roles, username);
   }
 
   private static String stripPrefix(String role) {

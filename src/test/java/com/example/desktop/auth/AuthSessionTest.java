@@ -39,12 +39,30 @@ class AuthSessionTest {
   }
 
   @Test
-  void anUnreadableTokenYieldsNoRolesRatherThanFailingTheLogin() {
-    AuthSession session = new AuthSession("not-a-jwt", Set.of());
+  void aTokenThatIsNotAJwtYieldsNoRolesRatherThanFailingTheLogin() {
+    AuthSession session = AuthSession.fromToken("not-a-jwt", JsonMapperFactory.create());
 
     assertTrue(session.roles().isEmpty());
     assertFalse(session.isAdmin());
     assertEquals("not-a-jwt", session.accessToken());
+    assertEquals("", session.username());
+  }
+
+  @Test
+  void aJwtWhosePayloadIsNotReadableYieldsNoRolesRatherThanFailingTheLogin() {
+    // Three parts, so the decode is attempted and the catch block actually runs — the earlier
+    // version of this test called the constructor and never exercised it.
+    AuthSession session =
+        AuthSession.fromToken("header.!!!not-base64!!!.signature", JsonMapperFactory.create());
+
+    assertTrue(session.roles().isEmpty());
+    assertFalse(session.isAdmin());
+  }
+
+  @Test
+  void usernameComesFromPreferredUsernameAndFallsBackToSub() {
+    assertEquals("alice", session("{\"preferred_username\":\"alice\",\"sub\":\"uuid\"}").username());
+    assertEquals("uuid", session("{\"sub\":\"uuid\"}").username());
   }
 
   /** Builds an unsigned JWT-shaped token with the given payload; the signature is never checked. */
