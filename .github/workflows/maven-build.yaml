@@ -1,0 +1,37 @@
+name: Maven Build
+
+on:
+  push:
+  pull_request:
+  # dynamic-form dispatches this after publishing a new api jar, testcontainers jar and image
+  repository_dispatch:
+    types: [dynamic-form-built]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      # SnapFX is not on Maven Central, so it has to be installed from its GitHub release
+      - name: Install SnapFX into the local repository
+        run: bash scripts/install-snapfx.sh
+
+      # The integration tests start ghcr.io/markoniemi/dynamic-form, which is still a private
+      # package. Drop this step once the package is made public.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.PACKAGE_UPDATE_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and test
+        run: mvn -B clean verify

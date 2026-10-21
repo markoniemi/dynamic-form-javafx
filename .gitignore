@@ -1,3 +1,9 @@
+# Maven
+target/
+
+# superpowers execution workspace (scratch: ledger, briefs, logs)
+.superpowers/
+
 # Default ignored files
 /shelf/
 /workspace.xml
