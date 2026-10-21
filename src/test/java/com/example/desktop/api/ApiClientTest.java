@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -130,6 +131,29 @@ class ApiClientTest {
             ApiException.class, () -> client.post(ApiPaths.FORMS, Map.of(), FormDto.class));
 
     assertEquals("title", e.getErrors().get(0).getField());
+  }
+
+  @Test
+  void aServerThatNeverAnswersFailsInsteadOfBlockingForever() {
+    // Accepts the connection and then says nothing, which is how a hung backend behaves. Without
+    // a request timeout the calling thread parks indefinitely.
+    server.createContext(
+        "/api/forms",
+        exchange -> {
+          try {
+            Thread.sleep(1_500);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+          exchange.close();
+        });
+    ApiClient client =
+        new ApiClient(
+            baseUrl, () -> "t", JsonMapperFactory.create(), Duration.ofMillis(300));
+
+    assertThrows(
+        Exception.class,
+        () -> client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {}));
   }
 
   @Test

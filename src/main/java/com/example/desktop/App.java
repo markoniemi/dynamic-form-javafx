@@ -8,7 +8,13 @@ import com.example.desktop.ui.dock.DockLayoutManager;
 import com.example.desktop.ui.dock.LayoutStore;
 import java.nio.file.Path;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Label;
+import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.snapfx.SnapFX;
 
@@ -33,24 +39,66 @@ public class App extends Application {
   public void start(Stage stage) {
     String backendUrl = System.getProperty("backend.url", DEFAULT_BACKEND_URL);
 
-    // Blocks until the user finishes in the browser. Acceptable only because nothing is on screen
-    // yet; once there is a window, login belongs off the FX thread behind a progress indicator.
-    AuthSession session =
-        new PkceLoginFlow(
-                backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
-            .login();
+    // The window goes up first, showing a status line. Logging in means three HTTP calls and then
+    // waiting for a human in a browser, so it cannot run on the FX thread — and if it fails, the
+    // user has to be told. Throwing out of start() only produces a stack trace on stderr, which in
+    // a jpackage build nobody ever sees.
+    stage.setTitle("Dynamic Form Desktop");
+    stage.setScene(new Scene(status("Signing in — complete the login in your browser…"), 1100, 750));
+    stage.show();
 
+    Task<AuthSession> login =
+        new Task<>() {
+          @Override
+          protected AuthSession call() {
+            return new PkceLoginFlow(
+                    backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
+                .login();
+          }
+        };
+    login.setOnSucceeded(event -> showMainWindow(stage, login.getValue()));
+    login.setOnFailed(event -> reportFatal(login.getException()));
+
+    Thread thread = new Thread(login, "login");
+    thread.setDaemon(true);
+    thread.start();
+  }
+
+  private void showMainWindow(Stage stage, AuthSession session) {
     layout = new DockLayoutManager(new SnapFX(), layoutStore(), session);
     stage.setTitle("Dynamic Form Desktop" + (session.isAdmin() ? " (admin)" : ""));
-    stage.setScene(new Scene(layout.build(stage), 1100, 750));
-    stage.show();
+    stage.getScene().setRoot(layout.build(stage));
+  }
+
+  /** Shows why the application cannot continue, then exits. */
+  private void reportFatal(Throwable cause) {
+    String message = cause == null ? "Unknown error" : cause.getMessage();
+    Alert alert =
+        new Alert(
+            Alert.AlertType.ERROR,
+            message == null || message.isBlank() ? cause.toString() : message);
+    alert.setHeaderText("Cannot sign in");
+    alert.showAndWait();
+    Platform.exit();
   }
 
   @Override
   public void stop() {
-    if (layout != null) {
-      layout.saveLayout();
+    if (layout == null) {
+      return;
     }
+    try {
+      layout.saveLayout();
+    } catch (RuntimeException e) {
+      // Losing the layout is not worth a crash trace on the way out.
+      System.err.println("Could not save the window layout: " + e.getMessage());
+    }
+  }
+
+  private static StackPane status(String text) {
+    Label label = new Label(text);
+    label.setAlignment(Pos.CENTER);
+    return new StackPane(label);
   }
 
   private static LayoutStore layoutStore() {

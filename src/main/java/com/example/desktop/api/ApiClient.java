@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
@@ -22,16 +23,35 @@ import java.util.function.Supplier;
  */
 public class ApiClient {
 
+  private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+  private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+
   private final String baseUrl;
   private final Supplier<String> tokenSupplier;
   private final ObjectMapper mapper;
   private final HttpClient http;
+  private final Duration requestTimeout;
 
   public ApiClient(String baseUrl, Supplier<String> tokenSupplier, ObjectMapper mapper) {
+    this(baseUrl, tokenSupplier, mapper, REQUEST_TIMEOUT);
+  }
+
+  /**
+   * Lets a caller shorten the per-request timeout. Tests use it to prove a hung server surfaces as
+   * a failure rather than parking the thread; production uses the default.
+   */
+  ApiClient(
+      String baseUrl,
+      Supplier<String> tokenSupplier,
+      ObjectMapper mapper,
+      Duration requestTimeout) {
     this.baseUrl = baseUrl;
     this.tokenSupplier = tokenSupplier;
     this.mapper = mapper;
-    this.http = HttpClient.newBuilder().build();
+    this.requestTimeout = requestTimeout;
+    // Without these a backend that drops SYNs, or accepts the connection and never answers, parks
+    // the calling thread for good.
+    this.http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
   }
 
   /**
@@ -72,7 +92,9 @@ public class ApiClient {
 
   private HttpRequest.Builder request(String path, String accept) {
     HttpRequest.Builder builder =
-        HttpRequest.newBuilder(URI.create(baseUrl + path)).header("Accept", accept);
+        HttpRequest.newBuilder(URI.create(baseUrl + path))
+            .timeout(requestTimeout)
+            .header("Accept", accept);
     String token = tokenSupplier.get();
     if (token != null && !token.isBlank()) {
       builder.header("Authorization", "Bearer " + token);

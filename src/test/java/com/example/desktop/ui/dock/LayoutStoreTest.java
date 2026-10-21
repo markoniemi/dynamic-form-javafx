@@ -35,8 +35,52 @@ class LayoutStoreTest {
   void saveCreatesMissingParentDirectories() {
     LayoutStore store = new LayoutStore(dir.resolve("nested/deeper/layout.json"));
 
-    assertDoesNotThrow(() -> store.save("{}"));
-    assertEquals("{}", store.load().orElseThrow());
+    assertDoesNotThrow(() -> store.save(A_REAL_LAYOUT));
+    assertEquals(A_REAL_LAYOUT, store.load().orElseThrow());
+  }
+
+  @Test
+  void loadRejectsALayoutWithNoPanes() {
+    // SnapFX serializes a graph whose panes have all been closed as exactly "{}", and its
+    // loadLayout accepts that without complaint — leaving a window with nothing in it.
+    LayoutStore store = new LayoutStore(dir.resolve("layout.json"));
+    store.save(A_REAL_LAYOUT);
+    writeDirectly("{}");
+
+    assertTrue(store.load().isEmpty(), "an empty layout must not count as one to restore");
+  }
+
+  @Test
+  void loadRejectsALayoutWhoseRootIsNull() {
+    LayoutStore store = new LayoutStore(dir.resolve("layout.json"));
+    writeDirectly("{\"root\":null}");
+
+    assertTrue(store.load().isEmpty());
+  }
+
+  @Test
+  void saveRefusesToPersistALayoutWithNoPanes() {
+    LayoutStore store = new LayoutStore(dir.resolve("layout.json"));
+    store.save(A_REAL_LAYOUT);
+
+    store.save("{}");
+
+    assertEquals(
+        A_REAL_LAYOUT,
+        store.load().orElseThrow(),
+        "closing every pane must not overwrite the last usable layout");
+  }
+
+  /** Shaped like what SnapFX actually writes: a root element carrying a node. */
+  private static final String A_REAL_LAYOUT =
+      "{\"root\":{\"type\":\"node\",\"id\":\"form-list\",\"title\":\"Forms\"}}";
+
+  private void writeDirectly(String content) {
+    try {
+      Files.writeString(dir.resolve("layout.json"), content);
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   @Test

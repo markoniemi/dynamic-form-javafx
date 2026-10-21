@@ -66,6 +66,12 @@ public class DockLayoutManager {
             saved -> {
               try {
                 snapFX.loadLayout(saved);
+                if (snapFX.getDockGraph().getRoot() == null) {
+                  // loadLayout accepts a graph with nothing in it without complaining, which would
+                  // leave an empty window. LayoutStore screens the shapes SnapFX is known to write;
+                  // this catches anything else that deserializes to nothing.
+                  return false;
+                }
                 hideEditorFromNonAdmins();
                 return true;
               } catch (DockLayoutLoadException e) {
@@ -77,16 +83,29 @@ public class DockLayoutManager {
         .orElse(false);
   }
 
+  /**
+   * The arrangement the spec asks for: list on the left, form in the centre, submissions below it.
+   *
+   * <p>Each pane is positioned relative to the one it belongs beside, not all relative to the list.
+   * Docking twice to the list's RIGHT splits the list's own cell instead of adding a column, which
+   * puts the editor in a quarter-width strip next to the list and the submissions under that pair.
+   */
   private void dockDefaults() {
     DockNode list = snapFX.dock(placeholder("Forms"), "Forms");
     list.setLayoutId(FORM_LIST);
-    snapFX.dock(placeholder("Form"), "Form", list, DockPosition.RIGHT).setLayoutId(FORM_FILL);
+
+    DockNode fill = snapFX.dock(placeholder("Form"), "Form", list, DockPosition.RIGHT);
+    fill.setLayoutId(FORM_FILL);
+
     snapFX
-        .dock(placeholder("Submissions"), "Submissions", list, DockPosition.BOTTOM)
+        .dock(placeholder("Submissions"), "Submissions", fill, DockPosition.BOTTOM)
         .setLayoutId(SUBMISSIONS);
+
     if (session.isAdmin()) {
+      // Tabbed with the form rather than given its own column: the two are alternative views of
+      // the same selected form, and never useful side by side.
       snapFX
-          .dock(placeholder("Editor"), "Editor", list, DockPosition.RIGHT)
+          .dock(placeholder("Editor"), "Editor", fill, DockPosition.CENTER)
           .setLayoutId(FORM_EDITOR);
     }
   }
