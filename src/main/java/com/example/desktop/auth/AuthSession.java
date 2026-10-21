@@ -55,8 +55,12 @@ public class AuthSession {
    * carrying the {@code ROLE_} prefix, and the backend's own converter accepts either form, so
    * neither can be relied on — stripping it here makes {@link #roles()} mean one thing whichever
    * the server sends.
+   *
+   * <p>Public because it is the only way to build a session: the login flow uses it, and so does a
+   * UI test that needs a session without driving a browser. The constructor stays package-private
+   * so every session's roles go through the normalisation above.
    */
-  static AuthSession fromToken(String accessToken, ObjectMapper mapper) {
+  public static AuthSession fromToken(String accessToken, ObjectMapper mapper) {
     Set<String> roles = new LinkedHashSet<>();
     String[] parts = accessToken.split("\\.");
     if (parts.length >= 2) {
