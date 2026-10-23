@@ -190,7 +190,7 @@ Consequences to keep in mind:
 |---------|--------|------|
 | Java / JavaFX | 21 / 21+ | SnapFX needs 21+, matches backend |
 | Build | Maven | Same toolchain as dynamic-form and oauth2-server |
-| Docking | SnapFX 0.8.0 | See 4.4. Not on Maven Central; installed from its GitHub release by `scripts/install-snapfx.sh` |
+| Docking | SnapFX 0.8.0 | See 4.4. Not on Maven Central; installed from its GitHub release by the `install-snapfx` profile (`mvn initialize`) |
 | HTTP | `java.net.http.HttpClient` behind a hand-written `ApiClient` | No extra dep. Retrofit is the sanctioned later experiment, Feign is not — see 4.6 |
 | Models | `dynamic-form-api` jar | Shared DTOs from dynamic-form, no hand-written copies |
 | JSON | Jackson 2 (`jackson-databind`) | Backend is Jackson 3; wire format is plain JSON, guarded by the api jar's round-trip test |
@@ -292,9 +292,10 @@ docs this plan first referenced:
   `com.google.gson`, `javafx.controls`, `javafx.graphics`, `javafx.base` and `java.desktop` — the client must
   declare gson and the JavaFX artifacts itself. It is compiled to class-file major 65 (Java 21).
 - **Packaging decision:** SnapFX is still not on Maven Central (checked: zero search hits, `/org/snapfx/`
-  returns 404). Rather than cloning and building it, `scripts/install-snapfx.sh` downloads the release jar
-  `snapfx-core-0.8.0-0.jar` from GitHub, verifies its published sha256 and installs it as
-  `org.snapfx:snapfx-core:0.8.0` with `maven-install-plugin`. It is idempotent, so it is re-runnable after a
+  returns 404). Rather than cloning and building it, the `install-snapfx` profile in `pom.xml` downloads the
+  release jar `snapfx-core-0.8.0-0.jar` from GitHub with `download-maven-plugin`, checks it against a sha256
+  pinned in the pom, and installs it as `org.snapfx:snapfx-core:0.8.0` with `maven-install-plugin`. The
+  profile activates only when the jar is absent, so it is re-runnable after a
   version bump or a cleaned `~/.m2`, and CI runs it before `mvn verify`.
   Pin an exact version and re-check the API on each bump (still a preview, may break). Isolate all SnapFX use in
   `ui/dock/` so a swap (e.g. BentoFX, which is on Central) stays cheap.
@@ -449,7 +450,7 @@ gets its own plan.
 
 | # | Phase | Output | Exit check |
 |---|-------|--------|------------|
-| 0 | Prereqs | All three artifacts are on Repsy at `1.0.0-SNAPSHOT` (verified 2026-10-17). Remaining: run `scripts/install-snapfx.sh` once, and get the GHCR package made public — **it is still private** (see 3.2). The loopback spike is dropped (4.2) | Both jars resolve from Repsy, the image pulls without a login, `org.snapfx:snapfx-core:0.8.0` is in `~/.m2` |
+| 0 | Prereqs | All three artifacts are on Repsy at `1.0.0-SNAPSHOT` (verified 2026-10-17). Remaining: run `mvn initialize` once, and get the GHCR package made public — **it is still private** (see 3.2). The loopback spike is dropped (4.2) | Both jars resolve from Repsy, the image pulls without a login, `org.snapfx:snapfx-core:0.8.0` is in `~/.m2` |
 | 1 | Skeleton | Maven project, `App`, SnapFX with placeholder panes, layout save/load | App starts, layout restores |
 | 2 | Test stack | Test `oauth2-server.yaml` with `desktop-client`, JUnit helper around `DynamicFormStack`, `Launcher` | `*IT` fetches `/api/config/oauth2-issuer-uri` |
 | 3 | Auth + API | PKCE flow, `ApiClient` on api-jar DTOs, API ITs | API IT passes for admin and user |
@@ -484,4 +485,14 @@ Resolved:
 7. ~~Loopback redirect: dynamic port or fixed?~~ Fixed `http://localhost:8123/callback`, matching the
    registration dynamic-form already publishes, see section 4.2.
 8. ~~SnapFX while it is off Maven Central: clone-and-build, vendored jar, or wait?~~ Install the GitHub release
-   jar, checked against its published sha256, via `scripts/install-snapfx.sh`; see section 4.4.
+   jar, checked against a pinned sha256, via the `install-snapfx` profile (`mvn initialize`); see section 4.4.
+
+## 8. Further development
+
+- Add config file, dynamic-form address could in config file. What other config options? Login flow constants?
+- Rename App to DesktopClient? DesktopApp?
+- Launcher lauches testcontainers and DesktopClient. For development it would be nice to have a separate launcher that launches testcontainers and remains in background. Is it possible?
+- Rename: 
+  - FormApi to FormService
+  - FormDataApi to FormDataService
+- Move paths in ApiPaths to corresponding services 

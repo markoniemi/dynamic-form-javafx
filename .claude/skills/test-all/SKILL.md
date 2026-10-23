@@ -16,7 +16,8 @@ mvn verify 2>&1 | grep -E "Tests run:|FAIL|ERROR|BUILD"
 - **Docker must be running.** The integration tests start three containers: the dynamic-form backend, the
   oauth2-server auth server, and `postgres:16-alpine`. The first run pulls all three.
 - **SnapFX must be in the local repository.** If the build cannot resolve `org.snapfx:snapfx-core`, run
-  `bash scripts/install-snapfx.sh`. It is not on Maven Central.
+  `mvn initialize`. It is not on Maven Central, so the `install-snapfx` profile fetches it from its GitHub
+  release. This cannot happen inside the `verify` run itself — Maven resolves dependencies before any phase.
 - **Host port 9000 must be free.** The auth server binds it on a fixed port, because the `iss` claim has to
   match the issuer the backend expects. A locally running auth server will collide.
 - **`ghcr.io/markoniemi/dynamic-form` must be pullable.** It is a private package unless that has been changed,

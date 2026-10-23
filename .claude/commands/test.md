@@ -8,7 +8,8 @@ mvn test 2>&1 | grep -E "Tests run:|FAIL|ERROR|BUILD"
 ```
 
 If the build fails to resolve `org.snapfx:snapfx-core`, SnapFX is not in the local repository: run
-`bash scripts/install-snapfx.sh` and try again. It is not on Maven Central.
+`mvn initialize` and try again. It is not on Maven Central, so the `install-snapfx` profile fetches it
+from its GitHub release.
 
 Before reporting, check that `target/surefire-reports/*.txt` were modified by this run. If they are stale, say
 so and do not report the tests as passing.

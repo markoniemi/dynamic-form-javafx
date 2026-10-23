@@ -24,9 +24,12 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-      # SnapFX is not on Maven Central, so it has to be installed from its GitHub release
+      # SnapFX is not on Maven Central. The install-snapfx profile in pom.xml downloads it from its
+      # GitHub release and installs it into the local repository. This needs its own invocation:
+      # Maven resolves a project's dependencies before it runs any phase, so a profile bound to
+      # initialize cannot repair a missing dependency inside the same `mvn verify`.
       - name: Install SnapFX into the local repository
-        run: bash scripts/install-snapfx.sh
+        run: mvn -B initialize
 
       # The integration tests start ghcr.io/markoniemi/dynamic-form, which is still a private
       # package. Drop this step once the package is made public.

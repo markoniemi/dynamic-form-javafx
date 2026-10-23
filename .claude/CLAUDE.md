@@ -86,7 +86,13 @@ other, so the docking framework can create, destroy and re-dock them freely.
 preview library and is not on Maven Central; isolating it keeps a swap cheap.
 
 **Build prerequisite** — SnapFX must be installed into the local repository before the first build:
-`bash scripts/install-snapfx.sh`. It is idempotent; rerun it after a version bump or a cleaned `~/.m2`.
+`mvn initialize`. The `install-snapfx` profile in `pom.xml` downloads the release jar, checks it against a
+pinned sha256 and installs it. The profile activates only when the jar is missing, so later builds never
+touch the network; rerun the command after a version bump or a cleaned `~/.m2`.
+
+It needs its own invocation — `mvn verify` alone cannot do it. Maven resolves a project's dependencies
+before it runs any phase, so a profile bound to `initialize` cannot repair a dependency that is already
+missing when resolution happens.
 
 ## Git Commit Messages
 

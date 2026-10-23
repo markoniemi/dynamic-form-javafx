@@ -24,7 +24,7 @@ no code from it**: DTOs and the integration-test stack come from published artif
 ## Project Structure
 
 ```
-scripts/install-snapfx.sh              SnapFX is not on Maven Central; installs its release jar
+pom.xml                                The install-snapfx profile fetches SnapFX; it is not on Maven Central
 src/main/java/com/example/desktop/
   App.java                             Application entry: wires services, builds the layout
   auth/                                PkceCodes, LoopbackCallbackServer, BrowserLauncher, AuthSession, PkceLoginFlow
@@ -44,10 +44,15 @@ src/test/java/com/example/desktop/
 ### Prerequisite, once per machine
 
 ```bash
-bash scripts/install-snapfx.sh
+mvn initialize
 ```
 
-Idempotent. Rerun after a SnapFX version bump or a cleaned `~/.m2`. Without it the build cannot resolve
+The `install-snapfx` profile downloads the release jar, checks it against the sha256 pinned in `pom.xml` and
+installs it. The profile activates only when the jar is missing, so this is a no-op afterwards. It needs its
+own invocation rather than being part of `mvn verify`, because Maven resolves dependencies before it runs any
+phase.
+
+Rerun after a SnapFX version bump or a cleaned `~/.m2`. Without it the build cannot resolve
 `org.snapfx:snapfx-core`.
 
 ### Running
