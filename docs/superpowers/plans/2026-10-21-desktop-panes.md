@@ -112,7 +112,7 @@ src/test/java/com/example/desktop/
     - `void waitUntil(BooleanSupplier condition)` — polls until true or fails after a timeout, for anything that completes on a background thread
     - `Stage stage()` — a headless stage the layout tests can build into
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 class AppStateTest {
@@ -162,16 +162,16 @@ class MessagesTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `mvn -Dtest='AppStateTest,MessagesTest' test`
 Expected: FAIL with "cannot find symbol" for `AppState` and `Messages`.
 
-- [ ] **Step 3: Add the test dependencies and headless configuration to `pom.xml`**
+- [x] **Step 3: Add the test dependencies and headless configuration to `pom.xml`**
 
 Add `testfx-core`, `testfx-junit5` and `openjfx-monocle` in `test` scope with the pinned versions. Add the four headless system properties to the `maven-failsafe-plugin` configuration's `<systemPropertyVariables>` so `mvn verify` needs no command-line flags.
 
-- [ ] **Step 4: Implement `AppState`, `Messages` and `messages.properties`**
+- [x] **Step 4: Implement `AppState`, `Messages` and `messages.properties`**
 
 `admin()` is a `BooleanBinding` over `session()`, not a field that callers must remember to update.
 
@@ -181,19 +181,19 @@ Add `testfx-core`, `testfx-junit5` and `openjfx-monocle` in `test` scope with th
 and the English text, converting i18next's `{{name}}` placeholders to `MessageFormat`'s positional `{0}`.
 Mirroring the paths is what lets a translation be lifted from either project later.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `mvn -Dtest='AppStateTest,MessagesTest' test`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 6: Implement `UiTest` and prove the harness runs headless**
+- [x] **Step 6: Implement `UiTest` and prove the harness runs headless**
 
 Write a throwaway assertion inside `UiTest` itself — construct a `Label` on the FX thread and read its text back through `fxValue` — so the base class is exercised by its own test run.
 
 Run: `mvn -Dtest=UiTest test`
 Expected: PASS. If the toolkit fails to start, Monocle is not on the classpath or the system properties did not reach the JVM; fix that before Task 2, because every later task depends on it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add pom.xml src/main/java/com/example/desktop/state src/main/java/com/example/desktop/i18n \
@@ -218,7 +218,7 @@ git commit -m "Add AppState, i18n bundle and the headless TestFX harness"
   - `FieldControlFactory.create(FieldDto field)` → `FieldControl`.
   - This task covers `text`, `email`, `tel`, `textarea`, `number`, `date`. Task 3 adds the option types.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 class FieldControlFactoryTest extends UiTest {
@@ -286,23 +286,23 @@ class FieldControlFactoryTest extends UiTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `mvn -Dtest=FieldControlFactoryTest test`
 Expected: FAIL with "cannot find symbol" for `FieldControl` and `FieldControlFactory`.
 
-- [ ] **Step 3: Implement `FieldControl` and the text-like half of `FieldControlFactory`**
+- [x] **Step 3: Implement `FieldControl` and the text-like half of `FieldControlFactory`**
 
 `number` uses a `TextField` with a `TextFormatter` whose filter accepts only digits, an optional leading minus and one decimal point — and whose `value()` is still a `String`, because that is the wire format. `date` uses a `DatePicker`, formatting with `DateTimeFormatter.ISO_LOCAL_DATE` and mapping null to `""`.
 
 `showError` adds a `field-error` style class and sets the control's tooltip to the message; `clearError` removes both. Keep the class name in a constant — Task 4 asserts on it.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `mvn -Dtest=FieldControlFactoryTest test`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui/field src/test/java/com/example/desktop/ui/field
@@ -323,7 +323,7 @@ git commit -m "Add FieldControl and the text, number and date controls"
 
 **Decision recorded here:** a `checkbox` **with** options renders a group and its value is a `List<String>` of the selected values — including when there is exactly one option. A `checkbox` with **no** options renders a single `CheckBox` whose value is a `Boolean`. This diverges from the React client for the one-option case, where it sends the option's value string or `false`; no seeded form has a one-option checkbox, and one consistent rule inside the desktop is worth more than bug-for-bug fidelity to a shape the frontend itself renders inconsistently (its read-only view treats the value as a boolean). Covered by the first two tests below. Steps 1-4 cover Review Focus items 1 and 2.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
   @Test
@@ -404,12 +404,12 @@ git commit -m "Add FieldControl and the text, number and date controls"
   }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `mvn -Dtest=FieldControlFactoryTest test`
 Expected: FAIL — the new cases fail; the six from Task 2 still pass.
 
-- [ ] **Step 3: Implement the option types and the unknown-type fallback**
+- [x] **Step 3: Implement the option types and the unknown-type fallback**
 
 `select` is a `ComboBox<FieldOptionDto>` with a cell factory showing `label` and a value of the option's
 `value`. `radio` is a `ToggleGroup` of `RadioButton`s in a `VBox`, each carrying its option as user data.
@@ -420,12 +420,12 @@ An unknown type returns a `FieldControl` wrapping a disabled `TextField` whose p
 whose `value()` is `""`. `FormFillPane` (Task 4) must then skip it when building the submission map — assert
 that there, not here.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `mvn -Dtest=FieldControlFactoryTest test`
 Expected: PASS, 13 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui/field src/test/java/com/example/desktop/ui/field
@@ -450,7 +450,7 @@ git commit -m "Add select, radio and checkbox controls; define unknown-type beha
   - `ErrorBanner` with `void show(String message)`, `void showAll(List<ValidationErrorDto> errors)` and `void clear()`.
   - `BusyOverlay` with `void setBusy(boolean busy)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `collect()` is the seam that makes the wire format testable without a backend. Step 1 covers Review Focus item 4.
 
@@ -524,12 +524,12 @@ class FormFillPaneTest extends UiTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `mvn -Dtest=FormFillPaneTest test`
 Expected: FAIL — `FormFillPane` does not exist.
 
-- [ ] **Step 3: Implement `ErrorBanner`, `BusyOverlay` and `FormFillPane`**
+- [x] **Step 3: Implement `ErrorBanner`, `BusyOverlay` and `FormFillPane`**
 
 Add the test seams the tests above use: `setValues(Map)`, `controlFor(String)`, `showErrors(List)` and
 `bannerText()`. They are part of the pane's API, not test-only hacks — the editor and submissions panes reuse
@@ -540,12 +540,12 @@ calls `FormDataApi.submit` **off the FX thread** inside a `Task`, with `BusyOver
 `ApiException` with a 400, route the errors through `showErrors`; on any other failure show the banner.
 `collect()` skips controls whose field type was unknown.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `mvn -Dtest=FormFillPaneTest test`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui/forms src/main/java/com/example/desktop/ui/common \
@@ -570,7 +570,7 @@ git commit -m "Add FormFillPane with client-side validation and server error map
   - `PaneFactory` — a functional interface `Node create(String nodeId)`, returning null for an id it will not build (which is how a non-admin gets no editor). It replaces `DockLayoutManager`'s private `placeholder(...)`.
   - `DockLayoutManager(SnapFX, LayoutStore, AppState, PaneFactory)` — the `AuthSession` parameter becomes `AppState`, whose `admin()` it reads for gating. Node ids are unchanged, so a layout saved by the foundation build keeps working.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```java
 class ReadPathIT extends UiTest {
@@ -606,18 +606,18 @@ class ReadPathIT extends UiTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dit.test=ReadPathIT verify`
 Expected: FAIL — `FormListPane` does not exist.
 
-- [ ] **Step 3: Implement `FormListPane`**
+- [x] **Step 3: Implement `FormListPane`**
 
 A `ListView<FormListItemDto>` with a cell factory showing the title, a refresh button, and `refresh()` loading
 off the FX thread. Expose `formKeys()` for the tests. Sort by title for display — `GET /api/forms` has no
 defined order, so the pane imposes one rather than showing whatever arrives.
 
-- [ ] **Step 4: Wire the real panes into the shell**
+- [x] **Step 4: Wire the real panes into the shell**
 
 Replace `DockLayoutManager`'s `placeholder(...)` calls with a `PaneFactory` interface the caller implements;
 `App` supplies it, building each pane with the APIs it needs. `App` also sets `AppState.session()` after login
@@ -626,12 +626,12 @@ and connects `selectedFormKey()` to `FormFillPane.show(...)` — loading the `Fo
 Keep the four node ids exactly as they are. A user upgrading from the foundation build has a saved layout
 keyed on them.
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `mvn -Dit.test=ReadPathIT verify`
 Expected: PASS, 2 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui src/main/java/com/example/desktop/App.java \
@@ -654,7 +654,7 @@ git commit -m "Add FormListPane; replace the placeholder panes with the real one
   - Also, used by its own tests and by whatever wires the pane's toolbar: `boolean deleteEnabled()`, `boolean editEnabled()`, `void select(long id)`, `void openForEdit(long id)` and `FieldControl editControlFor(String fieldName)`.
   - `AuthSession.username()` — added to the foundation's class, reading `preferred_username` with a `sub` fallback, which is the rule the backend uses to decide ownership.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Step 1 covers Review Focus item 3.
 
@@ -728,12 +728,12 @@ class SubmissionsIT extends UiTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dit.test=SubmissionsIT verify`
 Expected: FAIL — `SubmissionsPane` does not exist.
 
-- [ ] **Step 3: Implement `SubmissionsPane`**
+- [x] **Step 3: Implement `SubmissionsPane`**
 
 A `TableView<FormDataDto>` with columns id, formKey, submittedAt and submittedBy. Rows load off the FX thread.
 `filterBySelectedForm` applies a `FilteredList` predicate against `AppState.selectedFormKey()` — the endpoint
@@ -745,12 +745,12 @@ Gate delete on `AppState.admin()`, and gate edit on the submission being the cal
 `submittedBy` against the session's user. Add `String username()` to `AuthSession`, reading
 `preferred_username` and falling back to `sub`, which is the same rule the backend uses for ownership.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn -Dit.test=SubmissionsIT verify`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui/data src/main/java/com/example/desktop/auth \
@@ -770,7 +770,7 @@ git commit -m "Add SubmissionsPane with client-side filtering and ownership-awar
 - Consumes: `FormApi`, `AppState`, `FieldControlFactory` (for the preview), `Messages`.
 - Produces: `FormEditorPane(FormApi api, AppState state)` extending `BorderPane`, with `void editNew()`, `void edit(FormDto form)`, `FormDto collect()`, `void save()`, and — for its tests and for populating the editor from a definition — `void setDefinition(FormDto form)` and `String errorText()`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Step 1 covers Review Focus item 5.
 
@@ -829,12 +829,12 @@ class AdminEditorIT extends UiTest {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `mvn -Dit.test=AdminEditorIT verify`
 Expected: FAIL — `FormEditorPane` does not exist.
 
-- [ ] **Step 3: Implement `FormEditorPane`**
+- [x] **Step 3: Implement `FormEditorPane`**
 
 Key, title and description fields plus an editable list of field rows, each with name, label, type (a
 `ComboBox` over the nine types), a required toggle, and an options sub-editor shown only for `select`, `radio`
@@ -844,12 +844,12 @@ and `checkbox`. Add `setDefinition(FormDto)`, `errorText()` and `collect()` for 
 inputs, falling back to the banner for anything unmatched. The whole pane is only docked for an admin (Task 5),
 but `save()` must still handle a 403 gracefully rather than assuming the gate held.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `mvn -Dit.test=AdminEditorIT verify`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui/forms src/test/java/com/example/desktop/it/AdminEditorIT.java
@@ -870,7 +870,7 @@ git commit -m "Add FormEditorPane for admin form create, update and delete"
 
 The foundation plan's *Outcome and follow-up work* section lists these as verified by nobody. A manual launch on 2026-10-21 confirmed the panes render, the layout matches the spec and the Editor appears for an admin; the rest is still untested.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```java
 class ShellIT extends UiTest {
@@ -925,29 +925,29 @@ class ShellIT extends UiTest {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `mvn -Dit.test=ShellIT verify`
 Expected: FAIL — `currentLayout()`, `nodeById(String)` and `closeAllPanes()` do not exist.
 
-- [ ] **Step 3: Add the accessors and fix whatever the tests catch**
+- [x] **Step 3: Add the accessors and fix whatever the tests catch**
 
 Add `currentLayout()`, `nodeById(String)` and `closeAllPanes()` to `DockLayoutManager` (the last one iterating
 the graph's nodes and removing each, which is what a user does with the close buttons). If a test fails for a
 real reason rather than a missing accessor, fix the production code — these four behaviours were shipped on
 reasoning alone and this task exists because that is not evidence.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `mvn -Dit.test=ShellIT verify`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 Run: `mvn clean verify`
 Expected: every unit test and every `*IT` green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/main/java/com/example/desktop/ui/dock src/test/java/com/example/desktop/it/ShellIT.java
@@ -990,3 +990,56 @@ submit, and the editor present for `admin` and absent for `user`.
   React sends the value string or `false`. Revisit if a form with a one-option checkbox is ever created.
 - `AuthSession.username()` is added in Task 6 for the ownership check. It reads `preferred_username` with a
   `sub` fallback, mirroring the backend's `SecurityUtils`; if the backend's rule changes, this must follow.
+
+---
+
+## Outcome and follow-up work
+
+All eight tasks were executed (commits `e5ed77f`..`e6b8441` on `main`), followed by `0892f7c` for the
+whole-branch review. `mvn clean verify` passes from clean on `0892f7c` — **67 unit tests and 30 integration
+tests, 0 failures, 0 errors** (run 2026-10-23, Docker up, all three containers started).
+
+Three test classes grew past what their task specified, all in the review commit: `FormFillPaneTest` 5 → 9,
+`SubmissionsIT` 5 → 6, `ShellIT` kept its 4 but had its layout fixture replaced, because the original could not
+fail. `FieldControlFactoryTest` (13) and `AdminEditorIT` (4) match the plan as written.
+
+### Fixed after the whole-branch review
+
+From `0892f7c`. The two criticals both broke a path the plan's own tests passed through:
+
+- **C2 — a rejected submission gave the user nothing.** The `field-error` style class was defined in no
+  stylesheet, the banner was cleared before validating, and every client-side error was placed on an invisible
+  mark. Pressing Submit on a blank required field changed nothing on screen and made no request. The backend
+  validates no submission data, so this was the only validation there is. Adds the missing stylesheet, attaches
+  it in `App`, and summarises problems in the banner.
+- **C1 — editing a submission deleted every stored value the current form cannot render.** `collect()` built
+  the PUT body from the live controls and the backend replaces `data` wholesale, so a renamed field's answer was
+  gone for good. The edit now overlays the controls on the stored data. The failure was proved by reverting the
+  fix: the orphaned key came back null.
+- **I2** a null `FieldDto.type` NPE'd out of the factory — Review Focus item 1 covered an *unknown* type, not a
+  null one. **I3** two clicks created two submissions, which `BusyOverlay`'s javadoc wrongly claimed to prevent.
+  **I4** the Edit action populated a pane that was never on screen, so phase 5 view/edit did not work. **I5** an
+  admin could never load an existing definition, so phase 6 was create-only. **I6** a form deleted since the
+  last refresh failed silently. **I7** the layout persistence test could not fail, because its fixture was the
+  default layout.
+- Minors fixed in passing: stale error tooltips, the wrong message for a malformed email, a scalar `checkbox`
+  value dropped on read, and a raw style literal never cleared.
+
+### Still unverified
+
+- **The hand launch in the plan's exit check has not been done for these panes.** The 2026-10-21 launch recorded
+  in the foundation plan exercised the *placeholder* panes; nothing has confirmed the real ones render, that a
+  submission appears in the table after submit, or that the editor is present for `admin` and absent for `user`
+  in a live window. I4 and I5 were found by review, not by a test that watches the screen, so this is the
+  remaining gap.
+
+### Deferred minor findings
+
+`0892f7c` states "Eleven minors remain deferred, listed in the ledger" — **that ledger was never written.** The
+review's minor findings exist only in the session that produced them, and are not recoverable from the repo.
+Treat the count as the only surviving record; re-run a review over `src/main/java/com/example/desktop/ui` to
+rebuild the list rather than trusting this note.
+
+The foundation plan's twelve deferred minors are separate and still open; `m7` and `m5` remain the two worth
+doing first. `m4` (no URL-encoding in `ApiPaths`) is now reachable, because `FormEditorPane` lets an admin type
+a form key — it moved from theoretical to live when Task 7 landed.
