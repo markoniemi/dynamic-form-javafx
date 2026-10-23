@@ -14,6 +14,7 @@ import com.example.desktop.ui.dock.LayoutStore;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.Test;
@@ -128,6 +129,26 @@ class ShellIT extends UiTest {
         "a blank saved layout must fall back to the defaults");
   }
 
+  @Test
+  void aRestoredLayoutKeepsItsPaneContent() {
+    // The other tests here assert that a restored node exists, never that anything is inside it.
+    // A pane restored without its content is exactly what an empty panel on screen looks like.
+    LayoutStore store = new LayoutStore(layoutDir.resolve("content.json"));
+    onFx(
+        () -> {
+          DockLayoutManager first = manager(store, adminState());
+          first.build(freshStage());
+          first.saveLayout();
+        });
+
+    DockLayoutManager second = onFx(() -> manager(store, adminState()));
+    onFx(() -> second.build(freshStage()));
+
+    Node content = fxValue(() -> second.nodeById(DockLayoutManager.FORM_LIST).getContent());
+    assertNotNull(content, "a restored pane with no content renders as an empty panel");
+    assertEquals(DockLayoutManager.FORM_LIST, ((Label) content).getText());
+  }
+
   /** Each manager needs its own stage: SnapFX.initialize binds to the one it is given. */
   private static Stage freshStage() {
     return new Stage();
@@ -142,9 +163,17 @@ class ShellIT extends UiTest {
         new org.snapfx.SnapFX(),
         store,
         nodeId ->
-            DockLayoutManager.FORM_EDITOR.equals(nodeId) && !state.admin().get()
-                ? null
-                : new Label(nodeId));
+            switch (nodeId) {
+              case DockLayoutManager.FORM_LIST,
+                      DockLayoutManager.FORM_FILL,
+                      DockLayoutManager.SUBMISSIONS ->
+                  new Label(nodeId);
+              case DockLayoutManager.FORM_EDITOR ->
+                  state.admin().get() ? new Label(nodeId) : null;
+              // App's factory ends in `default -> null`. Returning a pane for any id at all hides
+              // the case that matters: on a restore SnapFX asks by dockNodeId, not by layout id.
+              default -> null;
+            });
   }
 
   private static AppState adminState() {

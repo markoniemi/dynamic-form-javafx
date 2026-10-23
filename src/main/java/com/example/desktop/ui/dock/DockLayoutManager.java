@@ -104,6 +104,7 @@ public class DockLayoutManager {
                   return false;
                 }
                 stripPanesTheFactoryDeclines();
+                attachPaneContent();
                 return true;
               } catch (DockLayoutLoadException e) {
                 // A layout from an older build, or a hand-edited one. Starting with the default
@@ -163,8 +164,38 @@ public class DockLayoutManager {
   }
 
   /**
-   * Rebuilds a node named by a saved layout. Returning null for an unknown id is how a stale
-   * layout degrades: SnapFX drops the node instead of failing the load.
+   * Puts this session's panes into the nodes a restored layout produced.
+   *
+   * <p>Required because SnapFX asks the node factory for content by {@code dockNodeId} — the random
+   * UUID it assigns — and not by the stable layout id the factory is keyed on. Every lookup
+   * therefore misses, and SnapFX fills the node with a placeholder reading "Unavailable node
+   * restored as placeholder" instead: a window of empty panels, which is what the second launch of
+   * the real application showed. The node itself survives with its layout id intact, so the content
+   * can simply be put back here, by the id this class already owns.
+   *
+   * <p>Done by stable id rather than by translating UUIDs, so nothing depends on how SnapFX names or
+   * serializes its nodes.
+   */
+  private void attachPaneContent() {
+    for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {
+      DockNode node = nodeById(id);
+      if (node == null) {
+        continue;
+      }
+      Node content = panes.create(id);
+      if (content != null) {
+        node.setContent(content);
+      }
+    }
+  }
+
+  /**
+   * Rebuilds a node named by a saved layout.
+   *
+   * <p>On a restore SnapFX calls this with a {@code dockNodeId}, so an id this method recognises
+   * only ever arrives from {@link #stripPanesTheFactoryDeclines()}; {@link #attachPaneContent()} is
+   * what actually fills a restored pane. Returning null is how a stale layout degrades: SnapFX keeps
+   * the node and substitutes a placeholder rather than failing the load.
    */
   private DockNode createNode(String id) {
     Node content = panes.create(id);
