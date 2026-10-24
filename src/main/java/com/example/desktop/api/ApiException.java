@@ -37,10 +37,15 @@ public class ApiException extends RuntimeException {
     if (body != null && !body.isBlank()) {
       try {
         ProblemDetail problem = mapper.readValue(body, ProblemDetail.class);
-        if (problem.getDetail() != null && !problem.getDetail().isBlank()) {
-          List<ValidationErrorDto> errors =
-              problem.getErrors() == null ? List.of() : List.copyOf(problem.getErrors());
-          return new ApiException(status, problem.getDetail(), errors);
+        List<ValidationErrorDto> errors =
+            problem.getErrors() == null ? List.of() : List.copyOf(problem.getErrors());
+        boolean hasDetail = problem.getDetail() != null && !problem.getDetail().isBlank();
+        // A document with errors but no detail used to fall through to the raw body, which threw
+        // the field errors away — and FormFillPane routes on them, so the form marked no control
+        // and showed the user its JSON. The status reason stands in for the missing detail.
+        if (hasDetail || !errors.isEmpty()) {
+          return new ApiException(
+              status, hasDetail ? problem.getDetail() : reasonFor(status), errors);
         }
       } catch (Exception e) {
         // not a problem document; fall through to the body or the status

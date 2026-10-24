@@ -1,6 +1,7 @@
 package com.example.desktop.api;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.json.JsonMapperFactory;
@@ -45,6 +46,21 @@ class ProblemDetailMappingTest {
     assertEquals(403, e.getStatus());
     assertEquals("Access Denied", e.getDetail());
     assertTrue(e.getErrors().isEmpty());
+  }
+
+  @Test
+  void errorsSurviveAProblemDocumentWithNoDetail() {
+    // FormFillPane routes on getErrors(): with them discarded, a rejected form marks no control
+    // and shows the user the raw JSON instead.
+    String body =
+        """
+        {"status":400,"errors":[{"field":"title","message":"Title is required","code":"NotBlank"}]}""";
+
+    ApiException e = ApiException.from(400, body, mapper);
+
+    assertEquals("title", e.getErrors().get(0).getField());
+    assertFalse(e.getDetail().isBlank(), "a blank detail still needs a readable message");
+    assertFalse(e.getDetail().contains("{"), "the raw JSON is not a message for a user");
   }
 
   @Test
