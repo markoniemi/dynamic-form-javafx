@@ -152,12 +152,9 @@ class SubmissionsIT extends UiTest {
     onFx(() -> pane.editorPane().submit());
     waitUntil(() -> "Submission saved".equals(fxValue(state.status()::get)));
     waitUntil(() -> !fxValue(pane::editing));
-    // The reload is silent, so there is nothing to wait on; give it time to land and overwrite.
-    try {
-      Thread.sleep(1500);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-    }
+    // A bounded negative wait: the assertion is that nothing changes, and a silent reload gives no
+    // positive signal to wait on.
+    settle(1500);
 
     assertEquals("Submission saved", fxValue(state.status()::get));
   }

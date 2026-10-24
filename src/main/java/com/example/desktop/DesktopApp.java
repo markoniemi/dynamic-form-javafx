@@ -143,11 +143,20 @@ public class DesktopApp extends Application {
             ? Messages.format("app.titleAdmin", Messages.get("app.title"))
             : Messages.get("app.title"));
     stage.getScene().setRoot(windowRoot(stage, state));
+  }
+
+  /**
+   * The first load of the data panes, and the one place a startup message is put on the status
+   * line. The loads are silent: they were not asked for, and their counts would overwrite a warning
+   * the user has not had time to read.
+   */
+  public static void startLoad(
+      AppState state, DesktopConfig config, FormListPane list, SubmissionsPane submissions) {
     if (!config.ignored().isEmpty()) {
       state.status().set(Messages.format("config.ignored", String.join(", ", config.ignored())));
     }
-    list.refresh();
-    submissions.refresh();
+    list.refreshSilently();
+    submissions.refreshSilently();
   }
 
   /** The window content: the dock in the centre, the status bar along the bottom. */

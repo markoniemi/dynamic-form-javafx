@@ -116,6 +116,14 @@ public class SubmissionsPane extends BorderPane {
    * Loads the rows. Only a refresh somebody asked for announces its count: one driven by a listener
    * or a callback would otherwise overwrite the message the user's own action just produced.
    */
+  /**
+   * Reloads without announcing the count in the status line: a reload nobody asked for must not
+   * overwrite the message of whatever caused it.
+   */
+  public void refreshSilently() {
+    load(false);
+  }
+
   private void load(boolean announce) {
     banner.clear();
     Task<List<FormDataDto>> call =
