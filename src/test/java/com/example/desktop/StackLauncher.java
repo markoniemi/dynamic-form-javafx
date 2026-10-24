@@ -2,7 +2,6 @@ package com.example.desktop;
 
 import com.example.dynamicform.testcontainers.DynamicFormStack;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -40,14 +39,29 @@ public final class StackLauncher {
     return Files.writeString(file, "backend.url=" + backendUrl + System.lineSeparator());
   }
 
+  /** Removes a published file so a dead URL cannot outlive the stack. */
+  static void deleteQuietly(Path file) {
+    try {
+      Files.deleteIfExists(file);
+    } catch (IOException e) {
+      System.err.println("Could not delete " + file + ": " + e);
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     DynamicFormStack stack =
         new DynamicFormStack()
             .withAuthConfigFile("oauth2-server.yaml")
             .withLogConsumer(frame -> System.out.print(frame.getUtf8String()))
             .start();
-    Runtime.getRuntime().addShutdownHook(new Thread(stack::close));
     Path file = writeProperties(DEFAULT_FILE, stack.backendUrl());
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new Thread(
+                () -> {
+                  deleteQuietly(file);
+                  stack.close();
+                }));
     System.out.println("Backend: " + stack.backendUrl());
     System.out.println("Auth:    " + stack.authUrl());
     System.out.println("Run the app against it from another terminal:");
@@ -55,14 +69,5 @@ public final class StackLauncher {
         "mvn -q test-compile exec:java@app -Dconfig.file="
             + file.toString().replace(java.io.File.separatorChar, '/'));
     Thread.currentThread().join();
-  }
-
-  /** Unchecked variant for callers that cannot handle the exception. */
-  static Path writeDefault(String backendUrl) {
-    try {
-      return writeProperties(DEFAULT_FILE, backendUrl);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }
