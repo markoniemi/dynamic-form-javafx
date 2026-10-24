@@ -26,7 +26,6 @@ import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 
@@ -320,18 +319,6 @@ public class DesktopApp extends Application {
       Platform.runLater(() -> mine.get().runIfCurrent(() -> state.session().set(fresh)));
       return fresh.accessToken();
     };
-  }
-
-  /** Shows why the application cannot continue, then exits. */
-  private void reportFatal(Throwable cause) {
-    String message = cause == null ? Messages.get("common.error") : cause.getMessage();
-    Alert alert =
-        new Alert(
-            Alert.AlertType.ERROR,
-            message == null || message.isBlank() ? String.valueOf(cause) : message);
-    alert.setHeaderText(Messages.get("login.failed"));
-    alert.showAndWait();
-    Platform.exit();
   }
 
   @Override

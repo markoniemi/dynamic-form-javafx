@@ -219,6 +219,9 @@ public class DockLayoutManager {
   }
 
   /**
+   * The counterpart of {@link #stripPanesTheFactoryDeclines()}: that removes what this session may
+   * not see, {@link #dockEditorIfNewlyAllowed()} adds what this session may see and the file lacks.
+   *
    * @return true if a saved layout was restored; false if the caller should dock the defaults
    */
   private boolean restoreSaved() {

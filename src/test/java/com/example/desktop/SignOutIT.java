@@ -10,6 +10,7 @@ import com.example.desktop.auth.AuthSession;
 import com.example.desktop.config.DesktopConfig;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.ui.UiTest;
+import com.example.desktop.ui.common.ErrorBanner;
 import com.example.desktop.ui.common.LoginPane;
 import com.example.desktop.ui.dock.DockLayoutManager;
 import java.nio.charset.StandardCharsets;
@@ -101,6 +102,26 @@ class SignOutIT extends UiTest {
     onFx(() -> current.state().status().set(""));
     onFx(() -> retired.runIfCurrent(() -> current.state().status().set("from the old session")));
     assertEquals("", fxValue(() -> current.state().status().get()));
+  }
+
+  @Test
+  void openingTheMainWindowAsksTheBackendForData() {
+    // The loads fail against the unreachable default URL; a failure landing in a pane's banner
+    // proves the window attempted them. StartupIT calls startLoad directly, so it cannot notice
+    // showMainWindow forgetting to.
+    DesktopApp app = newApp();
+    Stage stage = newStage();
+
+    onFx(() -> app.showMainWindow(stage, session("USER")));
+
+    waitUntil(() -> bannerText(app.panes().list()) && bannerText(app.panes().submissions()));
+  }
+
+  private static boolean bannerText(javafx.scene.Parent pane) {
+    return fxValue(
+        () ->
+            pane.lookupAll(".error-banner").stream()
+                .anyMatch(n -> !((ErrorBanner) n).text().isBlank()));
   }
 
   /** Never the user's own configuration: signing out writes the layout file. */
