@@ -1035,11 +1035,29 @@ From `0892f7c`. The two criticals both broke a path the plan's own tests passed 
 
 ### Deferred minor findings
 
-`0892f7c` states "Eleven minors remain deferred, listed in the ledger" — **that ledger was never written.** The
-review's minor findings exist only in the session that produced them, and are not recoverable from the repo.
-Treat the count as the only surviving record; re-run a review over `src/main/java/com/example/desktop/ui` to
-rebuild the list rather than trusting this note.
+`0892f7c` states "Eleven minors remain deferred, listed in the ledger" — **that ledger was never written**, and
+those findings are not recoverable from the repo. The list below is a **fresh review** of
+`src/main/java/com/example/desktop/ui` (2026-10-24, the polish plan's Task 9), not a recovery of the lost one.
+It happens to be eleven items; nothing should be read into that, and the four minors `0892f7c` fixed are gone
+from it. Roughly in the order worth doing.
 
-The foundation plan's twelve deferred minors are separate and still open; `m7` and `m5` remain the two worth
-doing first. `m4` (no URL-encoding in `ApiPaths`) is now reachable, because `FormEditorPane` lets an admin type
-a form key — it moved from theoretical to live when Task 7 landed.
+| # | Where | Issue |
+|---|-------|-------|
+| p1 | `SubmissionsPane:132,238,265`, `FormListPane:388`, `FormEditorPane:248` | A failure whose `getMessage()` is null reaches `banner.show(null)`, which renders as empty and hides the banner — so a delete or a load that fails with, say, an NPE tells the user nothing at all. Fall back to `common.error` whenever the message is blank, as the `cause == null` branch beside it already does |
+| p2 | `FormEditorPane:210`, `SubmissionsPane:247` | Deleting a form, and deleting a submission, are irreversible and offered with no confirmation — one click on a selected row is enough. Add a confirm step |
+| p3 | `FormFillPane:198`, `FormEditorPane:191`, `SubmissionsPane:125`, `FormListPane:381` | Success and "nothing here" messages are shown in `ErrorBanner`, which carries the `.error-banner` style class, so a successful submit is styled as a failure. Either a neutral/success variant or a separate status line |
+| p4 | `SubmissionsPane:80,82,84` | Three `AppState` listeners are registered in the constructor and never removed, so an undocked pane stays reachable from `AppState` and leaks. Use weak listeners, or give the pane a `dispose()` the dock layer calls |
+| p5 | `FormEditorPane:191` | A successful **create** reports `form.updateSuccess`. The create path needs its own key |
+| p6 | `SubmissionsPane:166,204` | `select(long)` searches the filtered `shown` list while `openForEdit(long)` searches `all`, so with a filter on, a row can be opened but not selected. Pick one |
+| p7 | `FormFillPane:87,226` | `form.getFields()` is dereferenced without a null check in both `show` and `validate`; `FieldDto.options` is guarded but this is not. A definition with null fields is an NPE rather than an empty form |
+| p8 | `FormListPane:378` | `Comparator.comparing(FormListItemDto::getTitle)` throws if any title is null, which fails the whole list rather than one row |
+| p9 | `FormListPane:352` | The refresh button's tooltip is `forms.subtitle` — a page subtitle pressed into service as an action label. It needs its own key |
+| p10 | `FormFillPane:259` | `showErrors` collects unplaced errors into a `LinkedHashSet`, so two distinct fields carrying an identical message collapse into one banner line |
+| p11 | `FieldControl:36` | `ERROR_TOOLTIP_KEY` is public interface API for what is purely `showError`'s bookkeeping, and it is declared between the method declarations rather than with the other constant |
+
+None was graded critical or important: p1 is the closest, since it hides a failure, but every `ApiException`
+carries a detail and only a throwable with no message at all reaches it.
+
+The foundation plan's deferred minors are separate. As of 2026-10-24 `m1`, `m2`, `m3`, `m4`, `m5`, `m6`, `m7`,
+`m8`, `m9`, `m10`, `m11`, `m12` and `m13` are all closed — see
+`docs/superpowers/plans/2026-10-24-desktop-polish.md`.
