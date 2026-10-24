@@ -7,6 +7,7 @@ import com.example.desktop.api.Reauthenticator;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.BrowserLauncher;
 import com.example.desktop.auth.PkceLoginFlow;
+import com.example.desktop.config.DesktopConfig;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
@@ -17,7 +18,6 @@ import com.example.desktop.ui.forms.FormEditorPane;
 import com.example.desktop.ui.forms.FormFillPane;
 import com.example.desktop.ui.forms.FormListPane;
 import com.example.dynamicform.api.FormDto;
-import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -33,13 +33,13 @@ import org.snapfx.SnapFX;
 /**
  * Application entry point.
  *
- * <p>The backend URL comes from the {@code backend.url} system property, so the same build runs
- * against a local server or a Testcontainers stack without rebuilding. The layout is stored per
- * user under the home directory.
+ * <p>The backend URL, locale and layout path come from {@link DesktopConfig}; a system property
+ * such as {@code backend.url} wins over the file, so one build runs against a local server or a
+ * Testcontainers stack without rebuilding.
  */
 public class DesktopApp extends Application {
 
-  private static final String DEFAULT_BACKEND_URL = "http://localhost:8080";
+  private DesktopConfig config;
 
   private DockLayoutManager layout;
 
@@ -49,7 +49,13 @@ public class DesktopApp extends Application {
 
   @Override
   public void start(Stage stage) {
-    String backendUrl = System.getProperty("backend.url", DEFAULT_BACKEND_URL);
+    config = DesktopConfig.load();
+    Messages.setLocale(config.locale());
+    if (!config.ignored().isEmpty()) {
+      // Goes to the status bar once there is one.
+      System.err.println(Messages.format("config.ignored", String.join(", ", config.ignored())));
+    }
+    String backendUrl = config.backendUrl();
 
     // The window goes up first, showing a status line. Logging in means three HTTP calls and then
     // waiting for a human in a browser, so it cannot run on the FX thread — and if it fails, the
@@ -83,7 +89,7 @@ public class DesktopApp extends Application {
   }
 
   private void showMainWindow(Stage stage, AuthSession session) {
-    String backendUrl = System.getProperty("backend.url", DEFAULT_BACKEND_URL);
+    String backendUrl = config.backendUrl();
     AppState state = new AppState();
     state.session().set(session);
 
@@ -116,7 +122,7 @@ public class DesktopApp extends Application {
     layout =
         new DockLayoutManager(
             new SnapFX(),
-            layoutStore(),
+            new LayoutStore(config.layoutFile()),
             nodeId ->
                 switch (nodeId) {
                   case DockLayoutManager.FORM_LIST -> list;
@@ -227,10 +233,5 @@ public class DesktopApp extends Application {
     Label label = new Label(text);
     label.setAlignment(Pos.CENTER);
     return new StackPane(label);
-  }
-
-  private static LayoutStore layoutStore() {
-    return new LayoutStore(
-        Path.of(System.getProperty("user.home"), ".dynamic-form-desktop", "layout.json"));
   }
 }

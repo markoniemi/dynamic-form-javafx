@@ -1,6 +1,7 @@
 package com.example.desktop.i18n;
 
 import java.text.MessageFormat;
+import java.util.Locale;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 
@@ -15,7 +16,14 @@ public final class Messages {
 
   private static final String BUNDLE = "i18n.messages";
 
+  private static volatile ResourceBundle bundle = ResourceBundle.getBundle(BUNDLE);
+
   private Messages() {}
+
+  /** Re-resolves the bundle for a locale; call before the first string is read. */
+  public static void setLocale(Locale locale) {
+    bundle = ResourceBundle.getBundle(BUNDLE, locale);
+  }
 
   /**
    * The text for a key, or the key itself when it is missing — a typo should be visible in the UI,
@@ -23,7 +31,7 @@ public final class Messages {
    */
   public static String get(String key) {
     try {
-      return ResourceBundle.getBundle(BUNDLE).getString(key);
+      return bundle.getString(key);
     } catch (MissingResourceException e) {
       return key;
     }
