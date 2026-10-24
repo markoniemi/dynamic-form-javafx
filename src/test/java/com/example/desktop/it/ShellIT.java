@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.json.JsonMapperFactory;
@@ -14,6 +15,8 @@ import com.example.desktop.ui.dock.LayoutStore;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.List;
+import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
@@ -150,6 +153,48 @@ class ShellIT extends UiTest {
     Node content = fxValue(() -> second.nodeById(DockLayoutManager.FORM_LIST).getContent());
     assertNotNull(content, "a restored pane with no content renders as an empty panel");
     assertEquals(DockLayoutManager.FORM_LIST, ((Label) content).getText());
+  }
+
+  @Test
+  void theDefaultArrangementPutsTheListAndSubmissionsLeftOfTheFormView() {
+    DockLayoutManager manager =
+        onFx(() -> manager(new LayoutStore(layoutDir.resolve("default.json")), adminState()));
+    onFx(() -> manager.build(freshStage()));
+
+    assertEquals(
+        List.of(
+            DockLayoutManager.FORM_LIST,
+            DockLayoutManager.SUBMISSIONS,
+            DockLayoutManager.FORM_FILL,
+            DockLayoutManager.FORM_EDITOR),
+        fxValue(manager::layoutIdsInOrder));
+    assertEquals(Orientation.HORIZONTAL, fxValue(manager::rootOrientation));
+    assertEquals(
+        0.33,
+        fxValue(manager::rootSplitFraction),
+        0.02,
+        "the form view gets about two thirds of the width");
+  }
+
+  @Test
+  void aSavedLayoutKeepsItsOwnProportions() {
+    // Every existing user has a layout saved before this change; the new defaults must not be
+    // pushed onto it.
+    LayoutStore store = new LayoutStore(layoutDir.resolve("dragged.json"));
+    String dragged =
+        onFx(
+            () -> {
+              DockLayoutManager first = manager(store, adminState());
+              first.build(freshStage());
+              assertTrue(first.setRootSplitFraction(0.80));
+              return first.currentLayout();
+            });
+    store.save(dragged);
+
+    DockLayoutManager second = onFx(() -> manager(store, adminState()));
+    onFx(() -> second.build(freshStage()));
+
+    assertEquals(0.80, fxValue(second::rootSplitFraction), 0.02);
   }
 
   /** Each manager needs its own stage: SnapFX.initialize binds to the one it is given. */

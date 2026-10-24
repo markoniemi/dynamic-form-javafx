@@ -1,14 +1,18 @@
 package com.example.desktop.ui.dock;
 
 import com.example.desktop.i18n.Messages;
+import java.util.ArrayList;
 import java.util.List;
+import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.stage.Stage;
 import org.snapfx.SnapFX;
+import org.snapfx.model.DockContainer;
 import org.snapfx.model.DockElement;
 import org.snapfx.model.DockNode;
 import org.snapfx.model.DockPosition;
+import org.snapfx.model.DockSplitPane;
 import org.snapfx.persistence.DockLayoutLoadException;
 
 /**
@@ -30,6 +34,9 @@ public class DockLayoutManager {
   public static final String FORM_EDITOR = "form-editor";
   public static final String SUBMISSIONS = "submissions";
 
+  /** Share of the width the left column gets by default; the form view takes the rest. */
+  private static final double DEFAULT_LIST_FRACTION = 0.33;
+
   private final SnapFX snapFX;
   private final LayoutStore store;
   private final PaneFactory panes;
@@ -47,10 +54,16 @@ public class DockLayoutManager {
     snapFX.initialize(stage);
     snapFX.setNodeFactory(this::createNode);
 
-    if (!restoreSaved()) {
+    boolean restored = restoreSaved();
+    if (!restored) {
       dockDefaults();
     }
-    return snapFX.buildLayout();
+    Parent root = snapFX.buildLayout();
+    if (!restored && !setRootSplitFraction(DEFAULT_LIST_FRACTION)) {
+      // SnapFX refuses ratios until the layout is built, so this cannot live in dockDefaults.
+      System.err.println("Could not apply the default split ratios; panes keep equal widths");
+    }
+    return root;
   }
 
   /** Hands the current layout to the store. Call from the application's stop hook. */
@@ -89,6 +102,48 @@ public class DockLayoutManager {
     }
   }
 
+  /** The layout ids in the graph, depth first: left to right, then top to bottom. */
+  public List<String> layoutIdsInOrder() {
+    List<String> ids = new ArrayList<>();
+    collectLayoutIds(snapFX.getDockGraph().getRoot(), ids);
+    return ids;
+  }
+
+  private static void collectLayoutIds(DockElement element, List<String> ids) {
+    if (element instanceof DockNode node) {
+      ids.add(node.getId());
+    } else if (element instanceof DockContainer container) {
+      for (DockElement child : container.getChildren()) {
+        collectLayoutIds(child, ids);
+      }
+    }
+  }
+
+  /** The root split's first divider position, or -1 when the root is not a split. */
+  public double rootSplitFraction() {
+    if (snapFX.getDockGraph().getRoot() instanceof DockSplitPane split
+        && !split.getDividerPositions().isEmpty()) {
+      return split.getDividerPositions().get(0).get();
+    }
+    return -1;
+  }
+
+  /** The root split's orientation, or null when the root is not a split. */
+  public Orientation rootOrientation() {
+    return snapFX.getDockGraph().getRoot() instanceof DockSplitPane split
+        ? split.getOrientation()
+        : null;
+  }
+
+  /**
+   * Moves the root split's first divider, as a user dragging it would.
+   *
+   * @return true if the fraction was applied
+   */
+  public boolean setRootSplitFraction(double fraction) {
+    return snapFX.setRootSplitRatios(fraction, 1 - fraction);
+  }
+
   /**
    * @return true if a saved layout was restored; false if the caller should dock the defaults
    */
@@ -118,11 +173,14 @@ public class DockLayoutManager {
   }
 
   /**
-   * The arrangement the spec asks for: list on the left, form in the centre, submissions below it.
+   * Forms over submissions on the left, the form view on the right, the editor tabbed with it.
    *
-   * <p>Each pane is positioned relative to the one it belongs beside, not all relative to the list.
-   * Docking twice to the list's RIGHT splits the list's own cell instead of adding a column, which
-   * puts the editor in a quarter-width strip next to the list and the submissions under that pair.
+   * <p>Each pane is positioned relative to the one it belongs beside. The fill pane goes to the
+   * list's RIGHT to make the second column; the submissions go to the list's BOTTOM, which splits
+   * only the left column and leaves the fill pane the whole right side. Docking them to the fill
+   * pane instead would put them under the form view. The root split is then set to one third for
+   * the left column. Only this default arrangement sets ratios: a restored layout keeps whatever
+   * the user dragged.
    */
   private void dockDefaults() {
     DockNode list = snapFX.dock(panes.create(FORM_LIST), title(FORM_LIST));
@@ -133,7 +191,7 @@ public class DockLayoutManager {
     fill.setLayoutId(FORM_FILL);
 
     snapFX
-        .dock(panes.create(SUBMISSIONS), title(SUBMISSIONS), fill, DockPosition.BOTTOM)
+        .dock(panes.create(SUBMISSIONS), title(SUBMISSIONS), list, DockPosition.BOTTOM)
         .setLayoutId(SUBMISSIONS);
 
     Node editor = panes.create(FORM_EDITOR);
@@ -141,6 +199,10 @@ public class DockLayoutManager {
       // Tabbed with the form rather than given its own column: the two are alternative views of
       // the same selected form, and never useful side by side.
       snapFX.dock(editor, title(FORM_EDITOR), fill, DockPosition.CENTER).setLayoutId(FORM_EDITOR);
+    }
+
+    if (!setRootSplitFraction(DEFAULT_LIST_FRACTION)) {
+      System.err.println("Could not apply the default split ratios; panes keep equal widths");
     }
   }
 
