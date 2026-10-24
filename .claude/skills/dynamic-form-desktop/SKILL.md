@@ -58,10 +58,8 @@ Rerun after a SnapFX version bump or a cleaned `~/.m2`. Without it the build can
 ### Running
 
 ```bash
-mvn javafx:run                                     # against a backend on http://localhost:8080
-mvn test-compile exec:java \
-  -Dexec.mainClass=com.example.desktop.Launcher \
-  -Dexec.classpathScope=test                       # starts the real stack in Docker first
+mvn javafx:run                 # against a backend on http://localhost:8080
+mvn test-compile exec:java     # starts the real stack in Docker first (Launcher)
 ```
 
 ### Testing

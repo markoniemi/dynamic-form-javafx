@@ -9,8 +9,7 @@ import com.example.dynamicform.testcontainers.DynamicFormStack;
  * <p>Lives under {@code src/test} because the Testcontainers dependency is test-scoped.
  *
  * <pre>
- * mvn -q test-compile exec:java -Dexec.mainClass=com.example.desktop.Launcher \
- *     -Dexec.classpathScope=test
+ * mvn -q test-compile exec:java
  * </pre>
  *
  * <p>Docker must be running and host port 9000 must be free. Logging in as {@code admin}/{@code

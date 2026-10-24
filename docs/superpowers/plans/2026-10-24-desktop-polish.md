@@ -416,7 +416,7 @@ git commit -m "Cache a failed stack start instead of repeating it per IT class; 
 - Modify: `pom.xml`
 
 **Interfaces:**
-- Produces: `exec-maven-plugin` declared and pinned, so `mvn test-compile exec:java -Dexec.mainClass=com.example.desktop.Launcher -Dexec.classpathScope=test` resolves a known version.
+- Produces: `exec-maven-plugin` declared and pinned, with `mainClass` and `classpathScope` configured, so the documented command is `mvn test-compile exec:java`.
 
 `Launcher`'s javadoc, the panes plan's exit check and the project skill all document an `exec:java` command, but the pom neither declares nor pins `exec-maven-plugin`, so Maven resolves whatever is newest the first time anyone runs it. Declare it with the `mainClass` and `classpathScope` already configured, so the documented command shortens to `mvn test-compile exec:java`.
 

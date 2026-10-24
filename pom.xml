@@ -31,6 +31,7 @@
     <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
     <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
     <javafx-maven-plugin.version>0.0.8</javafx-maven-plugin.version>
+    <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
     <download-maven-plugin.version>1.13.0</download-maven-plugin.version>
     <maven-install-plugin.version>3.1.4</maven-install-plugin.version>
 
@@ -180,6 +181,19 @@
         <version>${javafx-maven-plugin.version}</version>
         <configuration>
           <mainClass>com.example.desktop.App</mainClass>
+        </configuration>
+      </plugin>
+      <!-- Runs Launcher: the stack in Docker plus the app, for manual work. Declared and pinned
+           because the command is documented in three places; without this Maven resolved whatever
+           version was newest the first time anyone ran it. Configured here so the documented
+           command is `mvn test-compile exec:java` rather than three -D flags. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>${exec-maven-plugin.version}</version>
+        <configuration>
+          <mainClass>com.example.desktop.Launcher</mainClass>
+          <classpathScope>test</classpathScope>
         </configuration>
       </plugin>
     </plugins>
