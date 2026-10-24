@@ -102,7 +102,6 @@ public class LoopbackCallbackServer implements AutoCloseable {
 
   private void handle(HttpExchange exchange) throws IOException {
     Map<String, String> params = parseQuery(exchange.getRequestURI().getRawQuery());
-    callback.complete(params);
 
     // The browser is showing this tab to the user, so say something rather than nothing.
     boolean ok = params.containsKey("code") && !params.containsKey("error");
@@ -121,6 +120,11 @@ public class LoopbackCallbackServer implements AutoCloseable {
       out.write(body);
     }
     exchange.close();
+
+    // Completed last, on purpose. Completing it first unblocks awaitCode, whose caller closes this
+    // server in a try-with-resources — tearing the listener down before these bytes reach the
+    // browser, so the user saw a connection reset instead of the page written just above.
+    callback.complete(params);
   }
 
   private static Map<String, String> parseQuery(String rawQuery) {
@@ -141,6 +145,7 @@ public class LoopbackCallbackServer implements AutoCloseable {
 
   @Override
   public void close() {
-    server.stop(0);
+    // One second of grace rather than stop(0), which does not drain in-flight exchanges.
+    server.stop(1);
   }
 }

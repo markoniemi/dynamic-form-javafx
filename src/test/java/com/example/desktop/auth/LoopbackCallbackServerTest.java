@@ -1,6 +1,7 @@
 package com.example.desktop.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -57,6 +60,30 @@ class LoopbackCallbackServerTest {
 
       assertTrue(e.getMessage().contains(String.valueOf(taken)), e.getMessage());
     }
+  }
+
+  @Test
+  void theBrowserGetsTheFailurePageEvenThoughTheCallerTearsTheServerDown() throws Exception {
+    // The production sequence, which no other test here reproduces: the handler completes the
+    // future, awaitCode unblocks and throws, PkceLoginFlow's try-with-resources closes the server
+    // — all before the response has been written. The other tests fire and forget, so none of them
+    // ever looks at what the browser received.
+    CompletableFuture<HttpResponse<String>> browser;
+    try (LoopbackCallbackServer server = new LoopbackCallbackServer(0)) {
+      browser =
+          HttpClient.newHttpClient()
+              .sendAsync(
+                  HttpRequest.newBuilder(
+                          URI.create(server.redirectUri() + "?error=access_denied&state=s1"))
+                      .build(),
+                  HttpResponse.BodyHandlers.ofString());
+
+      assertThrows(Exception.class, () -> server.awaitCode("s1", Duration.ofSeconds(5)));
+    }
+
+    HttpResponse<String> response = browser.get(5, TimeUnit.SECONDS);
+    assertEquals(400, response.statusCode());
+    assertFalse(response.body().isBlank(), "the browser must get the page, not a connection reset");
   }
 
   /** Stands in for the browser following the authorization server's redirect. */
