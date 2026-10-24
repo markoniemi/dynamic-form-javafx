@@ -72,7 +72,8 @@ class SubmissionsIT extends UiTest {
 
     SubmissionsPane adminPane = pane("admin", "admin");
     onFx(adminPane::refresh);
-    waitUntil(() -> fxValue(adminPane::rows).stream().anyMatch(d -> d.getId().equals(mine.getId())));
+    waitUntil(
+        () -> fxValue(adminPane::rows).stream().anyMatch(d -> d.getId().equals(mine.getId())));
     onFx(() -> adminPane.select(mine.getId()));
     assertTrue(fxValue(adminPane::deleteEnabled));
   }
@@ -145,7 +146,8 @@ class SubmissionsIT extends UiTest {
   }
 
   private static Map<String, Object> feedbackValues() {
-    return Map.of("productName", "Widget", "quality", "good", "features", java.util.List.of("feature1"));
+    return Map.of(
+        "productName", "Widget", "quality", "good", "features", java.util.List.of("feature1"));
   }
 
   private static SubmissionsPane pane(String username, String password) {

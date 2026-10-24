@@ -64,7 +64,8 @@ class LoopbackCallbackServerTest {
       assertTrue(e.getMessage().contains(String.valueOf(taken)), e.getMessage());
       assertTrue(e.getMessage().contains("already in use"), e.getMessage());
       assertFalse(
-          e.getMessage().contains("BindException"), "the raw exception name helps nobody: " + e.getMessage());
+          e.getMessage().contains("BindException"),
+          "the raw exception name helps nobody: " + e.getMessage());
     }
   }
 

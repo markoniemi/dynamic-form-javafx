@@ -195,8 +195,7 @@ public class FormFillPane extends BorderPane {
     call.setOnSucceeded(
         event -> {
           setBusy(false);
-          banner.show(
-              Messages.get(submissionId == null ? "form.success" : "form.updateSuccess"));
+          banner.show(Messages.get(submissionId == null ? "form.success" : "form.updateSuccess"));
           // Published rather than pushed: the submissions pane listens for this, so neither pane
           // needs a reference to the other and the docking framework can destroy either freely.
           state.selectedSubmission().set(call.getValue());
@@ -245,9 +244,7 @@ public class FormFillPane extends BorderPane {
           && !EMAIL.matcher(text).matches()) {
         problems.add(
             new ValidationErrorDto(
-                field.getName(),
-                Messages.format("form.invalidEmail", field.getLabel()),
-                "Email"));
+                field.getName(), Messages.format("form.invalidEmail", field.getLabel()), "Email"));
       }
     }
     return problems;

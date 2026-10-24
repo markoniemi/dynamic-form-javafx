@@ -54,7 +54,8 @@ class AdminEditorIT extends UiTest {
     waitUntil(() -> api.list().stream().anyMatch(f -> ALL_TYPES_KEY.equals(f.getFormKey())));
     FormDto saved = api.get(ALL_TYPES_KEY);
     assertEquals(
-        List.of("text", "email", "tel", "number", "date", "textarea", "select", "radio", "checkbox"),
+        List.of(
+            "text", "email", "tel", "number", "date", "textarea", "select", "radio", "checkbox"),
         saved.getFields().stream().map(FieldDto::getType).toList());
   }
 
@@ -87,8 +88,7 @@ class AdminEditorIT extends UiTest {
 
     waitUntil(() -> !fxValue(editor::errorText).isBlank());
     assertFalse(
-        formApi("admin", "admin").list().stream()
-            .anyMatch(f -> "it-denied".equals(f.getFormKey())),
+        formApi("admin", "admin").list().stream().anyMatch(f -> "it-denied".equals(f.getFormKey())),
         "a rejected save must not have created the form");
   }
 

@@ -28,8 +28,8 @@ import javafx.util.StringConverter;
  *
  * <p>This is the only place in the client that knows the nine field types. The value shapes are
  * dictated by the backend's behaviour, not chosen here: it stores the submission map as JSON
- * without inspecting the form, so whatever type a control reports is what is persisted and what
- * the React frontend has to be able to read.
+ * without inspecting the form, so whatever type a control reports is what is persisted and what the
+ * React frontend has to be able to read.
  */
 public final class FieldControlFactory {
 
@@ -134,8 +134,8 @@ public final class FieldControlFactory {
 
   /**
    * A number is submitted as a <em>string</em>, matching the React client, which registers a plain
-   * text input and sends {@code event.target.value} verbatim. Sending a JSON number here would
-   * make the stored data mixed-type across the two clients.
+   * text input and sends {@code event.target.value} verbatim. Sending a JSON number here would make
+   * the stored data mixed-type across the two clients.
    */
   private static FieldControl number(FieldDto field) {
     TextField input = new TextField();
@@ -271,8 +271,7 @@ public final class FieldControlFactory {
       group.getToggles().stream()
           .filter(toggle -> wanted.equals(toggle.getUserData()))
           .findFirst()
-          .ifPresentOrElse(
-              toggle -> group.selectToggle(toggle), () -> group.selectToggle(null));
+          .ifPresentOrElse(toggle -> group.selectToggle(toggle), () -> group.selectToggle(null));
     }
   }
 
@@ -307,7 +306,8 @@ public final class FieldControlFactory {
             default -> List.of(value);
           };
       List<String> wanted = selected.stream().map(String::valueOf).toList();
-      boxes.forEach(check -> check.setSelected(wanted.contains(String.valueOf(check.getUserData()))));
+      boxes.forEach(
+          check -> check.setSelected(wanted.contains(String.valueOf(check.getUserData()))));
     }
   }
 
@@ -361,7 +361,9 @@ public final class FieldControlFactory {
       return picker;
     }
 
-    /** ISO {@code yyyy-MM-dd}, and {@code ""} when empty — exactly what an HTML date input sends. */
+    /**
+     * ISO {@code yyyy-MM-dd}, and {@code ""} when empty — exactly what an HTML date input sends.
+     */
     @Override
     public Object value() {
       LocalDate date = picker.getValue();

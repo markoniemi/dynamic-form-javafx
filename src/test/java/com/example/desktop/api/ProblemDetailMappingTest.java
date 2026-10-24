@@ -41,7 +41,8 @@ class ProblemDetailMappingTest {
 
   @Test
   void forbiddenHasDetailAndNoErrors() {
-    ApiException e = ApiException.from(403, "{\"status\":403,\"detail\":\"Access Denied\"}", mapper);
+    ApiException e =
+        ApiException.from(403, "{\"status\":403,\"detail\":\"Access Denied\"}", mapper);
 
     assertEquals(403, e.getStatus());
     assertEquals("Access Denied", e.getDetail());

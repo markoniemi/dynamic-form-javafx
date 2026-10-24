@@ -126,8 +126,8 @@ public class FormEditorPane extends BorderPane {
 
   /**
    * Both writes need {@code ROLE_ADMIN}. The pane is only docked for an admin, but a role can
-   * change under a restored layout, so the buttons follow the session rather than assuming.
-   * {@link #save()} still handles a 403 regardless.
+   * change under a restored layout, so the buttons follow the session rather than assuming. {@link
+   * #save()} still handles a 403 regardless.
    */
   private void updateActions() {
     boolean admin = state.admin().get();
@@ -182,9 +182,7 @@ public class FormEditorPane extends BorderPane {
         new Task<>() {
           @Override
           protected FormDto call() {
-            return existing == null
-                ? api.create(definition)
-                : api.update(existing, definition);
+            return existing == null ? api.create(definition) : api.update(existing, definition);
           }
         };
     call.setOnSucceeded(
@@ -286,8 +284,7 @@ public class FormEditorPane extends BorderPane {
       options.setPromptText(Messages.get("fieldEditor.options") + ": value=Label");
       options.setPrefRowCount(2);
       // Options only mean anything for the three types that have them.
-      type.valueProperty()
-          .addListener((obs, old, now) -> showOptionsFor(now));
+      type.valueProperty().addListener((obs, old, now) -> showOptionsFor(now));
       showOptionsFor(type.getValue());
 
       Button remove = new Button("✕");
@@ -319,8 +316,7 @@ public class FormEditorPane extends BorderPane {
     }
 
     FieldDto toField() {
-      List<FieldOptionDto> parsed =
-          OPTION_TYPES.contains(type.getValue()) ? parseOptions() : null;
+      List<FieldOptionDto> parsed = OPTION_TYPES.contains(type.getValue()) ? parseOptions() : null;
       return FieldDto.builder()
           .name(name.getText())
           .label(label.getText())

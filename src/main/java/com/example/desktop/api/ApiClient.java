@@ -196,7 +196,8 @@ public class ApiClient {
     try {
       return mapper.readValue(body, type);
     } catch (IOException e) {
-      throw new IllegalStateException("Cannot read a " + type.getSimpleName() + " from the response", e);
+      throw new IllegalStateException(
+          "Cannot read a " + type.getSimpleName() + " from the response", e);
     }
   }
 

@@ -77,7 +77,8 @@ class FieldControlFactoryTest extends UiTest {
     FieldControl control = onFx(() -> FieldControlFactory.create(field("a", "text")));
 
     onFx(() -> control.showError("Required"));
-    assertTrue(fxValue(() -> control.node().getStyleClass().contains(FieldControl.ERROR_STYLE_CLASS)));
+    assertTrue(
+        fxValue(() -> control.node().getStyleClass().contains(FieldControl.ERROR_STYLE_CLASS)));
 
     onFx(control::clearError);
     assertFalse(

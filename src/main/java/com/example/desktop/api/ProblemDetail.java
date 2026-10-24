@@ -5,9 +5,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 /**
- * An RFC 7807 {@code application/problem+json} body, as the backend's
- * {@code @RestControllerAdvice} writes it. A validation failure adds the {@code errors} extension;
- * other statuses carry {@code detail} only.
+ * An RFC 7807 {@code application/problem+json} body, as the backend's {@code @RestControllerAdvice}
+ * writes it. A validation failure adds the {@code errors} extension; other statuses carry {@code
+ * detail} only.
  *
  * <p>Unknown properties are ignored here, on this class alone rather than globally, because the
  * backend also sends {@code type} and {@code instance} which the client has no use for — while a

@@ -22,13 +22,14 @@ public interface FieldControl {
   String fieldName();
 
   /**
-   * The value to submit, already in the right JSON type: a {@code String} for text, number and
-   * date fields, a {@code List<String>} for a checkbox group, a {@code Boolean} for a lone
-   * checkbox.
+   * The value to submit, already in the right JSON type: a {@code String} for text, number and date
+   * fields, a {@code List<String>} for a checkbox group, a {@code Boolean} for a lone checkbox.
    */
   Object value();
 
-  /** Populates the control from a stored submission value. Tolerates a null or wrongly typed value. */
+  /**
+   * Populates the control from a stored submission value. Tolerates a null or wrongly typed value.
+   */
   void setValue(Object value);
 
   /** Where the installed tooltip is remembered, so {@link #clearError} can take it off again. */

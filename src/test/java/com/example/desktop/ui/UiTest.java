@@ -36,7 +36,10 @@ public abstract class UiTest {
     }
   }
 
-  /** A stage tests can build a scene into. Shared, so a test that uses it should not assume it is empty. */
+  /**
+   * A stage tests can build a scene into. Shared, so a test that uses it should not assume it is
+   * empty.
+   */
   protected static Stage stage() {
     return primaryStage;
   }
@@ -111,5 +114,4 @@ public abstract class UiTest {
       throw new AssertionError("Interrupted while polling", e);
     }
   }
-
 }

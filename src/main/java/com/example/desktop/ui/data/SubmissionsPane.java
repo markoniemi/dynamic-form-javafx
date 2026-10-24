@@ -12,6 +12,7 @@ import com.example.dynamicform.api.FormDataDto;
 import com.example.dynamicform.api.FormDto;
 import java.util.List;
 import java.util.function.Predicate;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -23,7 +24,6 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.ToolBar;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
-import javafx.beans.property.ReadOnlyObjectWrapper;
 
 /**
  * The submissions table, with the actions each role may actually perform.
@@ -59,10 +59,14 @@ public class SubmissionsPane extends BorderPane {
     this.state = state;
     this.editor = new FormFillPane(dataApi, state);
 
-    table.getColumns().addAll(List.of(column("submissions.table.id", d -> String.valueOf(d.getId())),
-        column("submissions.table.formKey", FormDataDto::getFormKey),
-        column("submissions.table.submittedAt", d -> String.valueOf(d.getSubmittedAt())),
-        column("submissions.table.submittedBy", FormDataDto::getSubmittedBy)));
+    table
+        .getColumns()
+        .addAll(
+            List.of(
+                column("submissions.table.id", d -> String.valueOf(d.getId())),
+                column("submissions.table.formKey", FormDataDto::getFormKey),
+                column("submissions.table.submittedAt", d -> String.valueOf(d.getSubmittedAt())),
+                column("submissions.table.submittedBy", FormDataDto::getSubmittedBy)));
 
     editButton.setOnAction(event -> openSelectedForEdit());
     deleteButton.setOnAction(event -> deleteSelected());
@@ -91,15 +95,15 @@ public class SubmissionsPane extends BorderPane {
     setCenter(tableView);
     setBottom(new ToolBar(refresh, editButton, deleteButton));
     BorderPane.setMargin(table, new Insets(0));
-    // A saved edit returns to the list, which the selectedSubmission listener has already refreshed.
+    // A saved edit returns to the list, which the selectedSubmission listener has already
+    // refreshed.
     editor.setOnSaved(saved -> showTable());
   }
 
   private TableColumn<FormDataDto, String> column(
       String titleKey, java.util.function.Function<FormDataDto, String> value) {
     TableColumn<FormDataDto, String> column = new TableColumn<>(Messages.get(titleKey));
-    column.setCellValueFactory(
-        cell -> new ReadOnlyObjectWrapper<>(value.apply(cell.getValue())));
+    column.setCellValueFactory(cell -> new ReadOnlyObjectWrapper<>(value.apply(cell.getValue())));
     return column;
   }
 
@@ -275,8 +279,8 @@ public class SubmissionsPane extends BorderPane {
   }
 
   /**
-   * Update is owner-only server-side, with no admin escape, so offering an admin an edit on
-   * someone else's submission would guarantee a 403.
+   * Update is owner-only server-side, with no admin escape, so offering an admin an edit on someone
+   * else's submission would guarantee a 403.
    */
   private boolean ownedByCurrentUser(FormDataDto submission) {
     if (submission == null || state.session().get() == null) {

@@ -61,7 +61,8 @@ class AuthSessionTest {
 
   @Test
   void usernameComesFromPreferredUsernameAndFallsBackToSub() {
-    assertEquals("alice", session("{\"preferred_username\":\"alice\",\"sub\":\"uuid\"}").username());
+    assertEquals(
+        "alice", session("{\"preferred_username\":\"alice\",\"sub\":\"uuid\"}").username());
     assertEquals("uuid", session("{\"sub\":\"uuid\"}").username());
   }
 

@@ -56,8 +56,7 @@ class PkceLoginFlowTest {
 
     Exception e = assertThrows(Exception.class, () -> flow(browserMustNotOpen()).login());
 
-    assertFalse(
-        e instanceof NullPointerException, "a bare NPE names nothing the user can act on");
+    assertFalse(e instanceof NullPointerException, "a bare NPE names nothing the user can act on");
     assertTrue(e.getMessage().contains("authorization_endpoint"), e.getMessage());
   }
 

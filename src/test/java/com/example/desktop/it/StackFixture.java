@@ -27,8 +27,8 @@ final class StackFixture {
   }
 
   /**
-   * The seam the fixture's own test uses: it passes a start action that fails, so the caching can be
-   * proven without Docker.
+   * The seam the fixture's own test uses: it passes a start action that fails, so the caching can
+   * be proven without Docker.
    */
   static synchronized DynamicFormStack stack(Supplier<DynamicFormStack> starter) {
     if (failure != null) {
@@ -52,8 +52,8 @@ final class StackFixture {
    * Starts the real stack, holding the backend's log until it is known whether it is wanted.
    *
    * <p>The consumer has to be attached before {@code start()} or the startup log is already gone by
-   * the time it would be useful, so the log is buffered and printed only if the start fails. After a
-   * successful start it is dropped rather than buffered, which would otherwise grow for the whole
+   * the time it would be useful, so the log is buffered and printed only if the start fails. After
+   * a successful start it is dropped rather than buffered, which would otherwise grow for the whole
    * test run.
    */
   private static DynamicFormStack startStack() {

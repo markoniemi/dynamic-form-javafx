@@ -47,12 +47,15 @@ class ShellIT extends UiTest {
     String defaults =
         onFx(
             () -> {
-              DockLayoutManager manager = manager(new LayoutStore(layoutDir.resolve("x.json")), adminState());
+              DockLayoutManager manager =
+                  manager(new LayoutStore(layoutDir.resolve("x.json")), adminState());
               manager.build(freshStage());
               return manager.currentLayout();
             });
     assertNotEquals(
-        structureOf(defaults), structureOf(rearranged), "the fixture must not be the default layout");
+        structureOf(defaults),
+        structureOf(rearranged),
+        "the fixture must not be the default layout");
 
     store.save(rearranged);
     String reloaded =
@@ -165,11 +168,10 @@ class ShellIT extends UiTest {
         nodeId ->
             switch (nodeId) {
               case DockLayoutManager.FORM_LIST,
-                      DockLayoutManager.FORM_FILL,
-                      DockLayoutManager.SUBMISSIONS ->
+                  DockLayoutManager.FORM_FILL,
+                  DockLayoutManager.SUBMISSIONS ->
                   new Label(nodeId);
-              case DockLayoutManager.FORM_EDITOR ->
-                  state.admin().get() ? new Label(nodeId) : null;
+              case DockLayoutManager.FORM_EDITOR -> state.admin().get() ? new Label(nodeId) : null;
               // App's factory ends in `default -> null`. Returning a pane for any id at all hides
               // the case that matters: on a restore SnapFX asks by dockNodeId, not by layout id.
               default -> null;

@@ -154,8 +154,7 @@ class ApiClientTest {
           exchange.close();
         });
     ApiClient client =
-        new ApiClient(
-            baseUrl, () -> "t", JsonMapperFactory.create(), Duration.ofMillis(300));
+        new ApiClient(baseUrl, () -> "t", JsonMapperFactory.create(), Duration.ofMillis(300));
 
     assertThrows(
         Exception.class,

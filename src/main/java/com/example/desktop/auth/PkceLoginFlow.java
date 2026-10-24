@@ -16,8 +16,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * OAuth2 authorization code flow with PKCE, in the shape RFC 8252 prescribes for a native app:
- * the system browser does the login, and the result comes back to a loopback listener.
+ * OAuth2 authorization code flow with PKCE, in the shape RFC 8252 prescribes for a native app: the
+ * system browser does the login, and the result comes back to a loopback listener.
  *
  * <p>The client needs only the backend's URL. It asks the backend which issuer to trust, then
  * discovers that issuer's endpoints, so no auth-server URL is compiled in.

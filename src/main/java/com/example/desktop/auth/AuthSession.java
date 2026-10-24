@@ -47,8 +47,8 @@ public class AuthSession {
   }
 
   /**
-   * Whether to offer the admin-only parts of the UI. This is a display decision only — every
-   * admin endpoint is enforced by the backend, which is the authority.
+   * Whether to offer the admin-only parts of the UI. This is a display decision only — every admin
+   * endpoint is enforced by the backend, which is the authority.
    */
   public boolean isAdmin() {
     return roles.contains(Roles.ADMIN);

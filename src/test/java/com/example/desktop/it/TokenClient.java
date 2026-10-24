@@ -76,8 +76,7 @@ final class TokenClient {
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(
                     form(
-                        Map.of(
-                            "username", username, "password", password, "_csrf", csrf.group(1))))
+                        Map.of("username", username, "password", password, "_csrf", csrf.group(1))))
                 .build());
     URI callback = redirect(client, HttpRequest.newBuilder(resume).build());
     Matcher code = Pattern.compile("[?&]code=([^&]+)").matcher(callback.toString());
@@ -100,7 +99,8 @@ final class TokenClient {
                 .build(),
             HttpResponse.BodyHandlers.ofString());
     if (tokens.statusCode() != 200) {
-      throw new IllegalStateException("Token endpoint returned " + tokens.statusCode() + ": " + tokens.body());
+      throw new IllegalStateException(
+          "Token endpoint returned " + tokens.statusCode() + ": " + tokens.body());
     }
     JsonNode json = MAPPER.readTree(tokens.body());
     return json.get("access_token").asText();

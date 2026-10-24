@@ -52,7 +52,8 @@ class MessagesTest {
   void theAdminTitleIsBuiltByTheBundleRatherThanByConcatenation() {
     assertTrue(
         Messages.format("app.titleAdmin", "Dynamic Form Desktop").contains("Dynamic Form Desktop"));
-    assertNotEquals("app.titleAdmin", Messages.format("app.titleAdmin", "x"), "the key must resolve");
+    assertNotEquals(
+        "app.titleAdmin", Messages.format("app.titleAdmin", "x"), "the key must resolve");
   }
 
   @Test

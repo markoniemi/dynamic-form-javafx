@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Guards the path builders against a form key that is not already URL-safe.
  *
- * <p>Harmless while every key matched {@code ^[a-z0-9-]+$}, but {@code FormEditorPane} lets an admin
- * type one, so a space or a {@code #} is now reachable from the UI.
+ * <p>Harmless while every key matched {@code ^[a-z0-9-]+$}, but {@code FormEditorPane} lets an
+ * admin type one, so a space or a {@code #} is now reachable from the UI.
  */
 class ApiPathsTest {
 
@@ -23,7 +23,8 @@ class ApiPathsTest {
 
   @Test
   void aSpaceIsPercentEncodedRatherThanLeftToBreakUriCreate() {
-    // URI.create throws IllegalArgumentException on a raw space, so the request never even goes out.
+    // URI.create throws IllegalArgumentException on a raw space, so the request never even goes
+    // out.
     assertEquals("/api/forms/my%20form", ApiPaths.form("my form"));
     assertDoesNotThrow(() -> URI.create("http://localhost:8080" + ApiPaths.form("my form")));
   }
@@ -31,7 +32,8 @@ class ApiPathsTest {
   @Test
   void charactersThatWouldSilentlyTruncateThePathAreEncoded() {
     // A raw # starts a fragment and a raw ? starts a query, so the backend would receive
-    // /api/forms/a and answer about a different form, or 404, with nothing in the client to say why.
+    // /api/forms/a and answer about a different form, or 404, with nothing in the client to say
+    // why.
     assertEquals("/api/forms/a%23b", ApiPaths.form("a#b"));
     assertEquals("/api/forms/a%3Fb", ApiPaths.form("a?b"));
     assertEquals("/api/form-data/a%23b", ApiPaths.formData("a#b"));

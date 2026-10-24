@@ -40,7 +40,9 @@ public class DockLayoutManager {
     this.panes = panes;
   }
 
-  /** Initialises SnapFX, restores the saved layout if there is a usable one, and returns the root. */
+  /**
+   * Initialises SnapFX, restores the saved layout if there is a usable one, and returns the root.
+   */
   public Parent build(Stage stage) {
     snapFX.initialize(stage);
     snapFX.setNodeFactory(this::createNode);
@@ -138,9 +140,7 @@ public class DockLayoutManager {
     if (editor != null) {
       // Tabbed with the form rather than given its own column: the two are alternative views of
       // the same selected form, and never useful side by side.
-      snapFX
-          .dock(editor, title(FORM_EDITOR), fill, DockPosition.CENTER)
-          .setLayoutId(FORM_EDITOR);
+      snapFX.dock(editor, title(FORM_EDITOR), fill, DockPosition.CENTER).setLayoutId(FORM_EDITOR);
     }
   }
 
@@ -148,8 +148,8 @@ public class DockLayoutManager {
    * Removes any node the factory will not build.
    *
    * <p>A saved layout can outlive the session that made it — an admin's layout opened by a plain
-   * user still names the editor — so the file is not trusted. The factory is the single authority on
-   * what this session may see, which keeps the default and restored paths from disagreeing.
+   * user still names the editor — so the file is not trusted. The factory is the single authority
+   * on what this session may see, which keeps the default and restored paths from disagreeing.
    */
   private void stripPanesTheFactoryDeclines() {
     for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {
@@ -173,8 +173,8 @@ public class DockLayoutManager {
    * the real application showed. The node itself survives with its layout id intact, so the content
    * can simply be put back here, by the id this class already owns.
    *
-   * <p>Done by stable id rather than by translating UUIDs, so nothing depends on how SnapFX names or
-   * serializes its nodes.
+   * <p>Done by stable id rather than by translating UUIDs, so nothing depends on how SnapFX names
+   * or serializes its nodes.
    */
   private void attachPaneContent() {
     for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {
@@ -194,8 +194,8 @@ public class DockLayoutManager {
    *
    * <p>On a restore SnapFX calls this with a {@code dockNodeId}, so an id this method recognises
    * only ever arrives from {@link #stripPanesTheFactoryDeclines()}; {@link #attachPaneContent()} is
-   * what actually fills a restored pane. Returning null is how a stale layout degrades: SnapFX keeps
-   * the node and substitutes a placeholder rather than failing the load.
+   * what actually fills a restored pane. Returning null is how a stale layout degrades: SnapFX
+   * keeps the node and substitutes a placeholder rather than failing the load.
    */
   private DockNode createNode(String id) {
     Node content = panes.create(id);

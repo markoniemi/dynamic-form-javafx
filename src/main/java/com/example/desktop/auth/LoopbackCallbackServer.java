@@ -60,7 +60,9 @@ public class LoopbackCallbackServer implements AutoCloseable {
     return server.getAddress().getPort();
   }
 
-  /** The redirect URI to send in the authorization request, byte-identical to the registered one. */
+  /**
+   * The redirect URI to send in the authorization request, byte-identical to the registered one.
+   */
   public String redirectUri() {
     return "http://localhost:" + port() + CALLBACK_PATH;
   }

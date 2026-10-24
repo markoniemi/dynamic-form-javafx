@@ -1,7 +1,5 @@
 package com.example.desktop.it;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.example.desktop.api.ApiClient;
 import com.example.desktop.api.FormApi;
 import com.example.desktop.api.FormDataApi;
@@ -25,9 +23,7 @@ class ReadPathIT extends UiTest {
     FormListPane list = onFx(() -> new FormListPane(formApi, state));
     FormFillPane fill = onFx(() -> new FormFillPane(dataApi, state));
     // The panes never reference each other; App wires them through AppState exactly like this.
-    state
-        .selectedFormKey()
-        .addListener((obs, old, key) -> fill.show(formApi.get(key)));
+    state.selectedFormKey().addListener((obs, old, key) -> fill.show(formApi.get(key)));
 
     onFx(list::refresh);
     waitUntil(() -> fxValue(list::formKeys).contains("contact"));
@@ -49,8 +45,7 @@ class ReadPathIT extends UiTest {
 
     onFx(list::refresh);
 
-    waitUntil(
-        () -> fxValue(list::formKeys).containsAll(List.of("contact", "feedback", "survey")));
+    waitUntil(() -> fxValue(list::formKeys).containsAll(List.of("contact", "feedback", "survey")));
   }
 
   private static boolean hasTester(Map<String, Object> data) {

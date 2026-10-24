@@ -122,7 +122,9 @@ class FormFillPaneTest extends UiTest {
             .noneMatch(FieldControl.ERROR_STYLE_CLASS::equals),
         "the mark must not survive a correction");
     assertNull(
-        fxValue(() -> pane.controlFor("name").node().getProperties().get("javafx.scene.control.Tooltip")),
+        fxValue(
+            () ->
+                pane.controlFor("name").node().getProperties().get("javafx.scene.control.Tooltip")),
         "nor may a stale tooltip");
   }
 
@@ -140,7 +142,8 @@ class FormFillPaneTest extends UiTest {
                             FieldDto.builder().name("odd").label("Odd").type(null).build(),
                             field("aText", "text")))));
 
-    assertNotNull(fxValue(() -> pane.controlFor("aText")), "the rest of the form must still render");
+    assertNotNull(
+        fxValue(() -> pane.controlFor("aText")), "the rest of the form must still render");
     assertFalse(fxValue(pane::collect).containsKey("odd"));
   }
 
@@ -151,8 +154,7 @@ class FormFillPaneTest extends UiTest {
 
     onFx(
         () ->
-            pane.showErrors(
-                List.of(new ValidationErrorDto("email", "Must be an email", "Email"))));
+            pane.showErrors(List.of(new ValidationErrorDto("email", "Must be an email", "Email"))));
 
     assertTrue(
         fxValue(

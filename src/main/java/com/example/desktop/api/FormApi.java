@@ -20,8 +20,8 @@ public class FormApi {
   }
 
   /**
-   * All forms, as key and title only. The backend applies no ordering, so neither does this —
-   * sort at the point of display if an order is wanted.
+   * All forms, as key and title only. The backend applies no ordering, so neither does this — sort
+   * at the point of display if an order is wanted.
    */
   public List<FormListItemDto> list() {
     return client.get(ApiPaths.FORMS, LIST_ITEMS);
