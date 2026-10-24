@@ -48,11 +48,40 @@ class PaneHeaderIT extends UiTest {
   void closingFromTheMenuRemovesThePaneFromTheGraph() {
     DockLayoutManager manager = built();
 
-    onFx(
-        () ->
-            manager.headerMenus(DockLayoutManager.SUBMISSIONS).getFirst().getItems().get(1).fire());
+    onFx(() -> menuItem(manager, DockLayoutManager.SUBMISSIONS, "pane.close").fire());
 
     assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+  }
+
+  @Test
+  void theRemainingPanesKeepOneMenuAndNoFloatButtonAfterAStructuralChange() {
+    // SnapFX rebuilds every node view on a relayout, so the decoration has to be re-applied by a
+    // listener; this is the way a user actually meets the feature.
+    DockLayoutManager manager = built();
+
+    onFx(() -> menuItem(manager, DockLayoutManager.SUBMISSIONS, "pane.close").fire());
+    onFx(() -> {});
+    onFx(() -> {});
+
+    for (String id : List.of(DockLayoutManager.FORM_LIST, DockLayoutManager.FORM_FILL)) {
+      assertEquals(1, fxValue(() -> manager.headerMenus(id)).size(), id);
+      assertFalse(fxValue(() -> manager.floatButtonVisible(id)), id);
+    }
+  }
+
+  @Test
+  void theTabbedEditorPaneIsDecoratedToo() {
+    DockLayoutManager manager = built();
+
+    int menus = fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_EDITOR)).size();
+    assertEquals(1, menus);
+  }
+
+  private static MenuItem menuItem(DockLayoutManager manager, String layoutId, String key) {
+    return manager.headerMenus(layoutId).getFirst().getItems().stream()
+        .filter(item -> Messages.get(key).equals(item.getText()))
+        .findFirst()
+        .orElseThrow();
   }
 
   @Test

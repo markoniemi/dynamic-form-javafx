@@ -3,6 +3,7 @@ package com.example.desktop.ui.dock;
 import com.example.desktop.i18n.Messages;
 import java.util.ArrayList;
 import java.util.List;
+import javafx.application.Platform;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -64,6 +65,13 @@ public class DockLayoutManager {
     }
     Parent root = snapFX.buildLayout();
     decorateHeaders();
+    // SnapFX rebuilds every node view on a revision bump, via its own runLater registered before
+    // this one. runLater is FIFO, so deferring ours puts it after the rebuild; a synchronous call
+    // would decorate the views about to be thrown away. The marker check keeps this cheap.
+    snapFX
+        .getDockGraph()
+        .revisionProperty()
+        .addListener((obs, old, rev) -> Platform.runLater(this::decorateHeaders));
     return root;
   }
 
