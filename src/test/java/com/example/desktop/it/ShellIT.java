@@ -170,6 +170,17 @@ class ShellIT extends UiTest {
         fxValue(manager::layoutIdsInOrder));
     assertEquals(Orientation.HORIZONTAL, fxValue(manager::rootOrientation));
     assertEquals(
+        Orientation.VERTICAL,
+        fxValue(() -> manager.orientationOfParentOf(DockLayoutManager.FORM_LIST)),
+        "the list sits over the submissions in one column");
+    assertTrue(
+        fxValue(
+            () -> manager.shareParent(DockLayoutManager.SUBMISSIONS, DockLayoutManager.FORM_LIST)));
+    assertTrue(
+        fxValue(
+            () -> manager.shareParent(DockLayoutManager.FORM_EDITOR, DockLayoutManager.FORM_FILL)),
+        "the editor is tabbed with the form view, not a column of its own");
+    assertEquals(
         0.33,
         fxValue(manager::rootSplitFraction),
         0.02,

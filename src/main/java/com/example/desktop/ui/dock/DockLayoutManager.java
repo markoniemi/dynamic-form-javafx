@@ -54,16 +54,10 @@ public class DockLayoutManager {
     snapFX.initialize(stage);
     snapFX.setNodeFactory(this::createNode);
 
-    boolean restored = restoreSaved();
-    if (!restored) {
+    if (!restoreSaved()) {
       dockDefaults();
     }
-    Parent root = snapFX.buildLayout();
-    if (!restored && !setRootSplitFraction(DEFAULT_LIST_FRACTION)) {
-      // SnapFX refuses ratios until the layout is built, so this cannot live in dockDefaults.
-      System.err.println("Could not apply the default split ratios; panes keep equal widths");
-    }
-    return root;
+    return snapFX.buildLayout();
   }
 
   /** Hands the current layout to the store. Call from the application's stop hook. */
@@ -126,6 +120,24 @@ public class DockLayoutManager {
       return split.getDividerPositions().get(0).get();
     }
     return -1;
+  }
+
+  /**
+   * The orientation of the split holding this layout id, or null when its parent is not a split or
+   * the id is absent.
+   */
+  public Orientation orientationOfParentOf(String layoutId) {
+    return snapFX.getDockGraph().findElementByLayoutId(layoutId) instanceof DockElement element
+            && element.getParent() instanceof DockSplitPane split
+        ? split.getOrientation()
+        : null;
+  }
+
+  /** Whether both layout ids exist and have the same parent container. */
+  public boolean shareParent(String first, String second) {
+    DockElement a = snapFX.getDockGraph().findElementByLayoutId(first);
+    DockElement b = snapFX.getDockGraph().findElementByLayoutId(second);
+    return a != null && b != null && a.getParent() != null && a.getParent() == b.getParent();
   }
 
   /** The root split's orientation, or null when the root is not a split. */
@@ -201,6 +213,7 @@ public class DockLayoutManager {
       snapFX.dock(editor, title(FORM_EDITOR), fill, DockPosition.CENTER).setLayoutId(FORM_EDITOR);
     }
 
+    // Observed with SnapFX 0.8.0: this returns true before buildLayout(), and true after it too.
     if (!setRootSplitFraction(DEFAULT_LIST_FRACTION)) {
       System.err.println("Could not apply the default split ratios; panes keep equal widths");
     }
