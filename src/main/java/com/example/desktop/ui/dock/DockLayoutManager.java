@@ -6,6 +6,7 @@ import java.util.List;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.control.MenuButton;
 import javafx.stage.Stage;
 import org.snapfx.SnapFX;
 import org.snapfx.model.DockContainer;
@@ -14,6 +15,7 @@ import org.snapfx.model.DockNode;
 import org.snapfx.model.DockPosition;
 import org.snapfx.model.DockSplitPane;
 import org.snapfx.persistence.DockLayoutLoadException;
+import org.snapfx.view.DockNodeView;
 
 /**
  * Builds and persists the dockable window layout.
@@ -37,6 +39,9 @@ public class DockLayoutManager {
   /** Share of the width the left column gets by default; the form view takes the rest. */
   private static final double DEFAULT_LIST_FRACTION = 0.33;
 
+  private static final List<String> PANE_IDS =
+      List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR);
+
   private final SnapFX snapFX;
   private final LayoutStore store;
   private final PaneFactory panes;
@@ -57,7 +62,45 @@ public class DockLayoutManager {
     if (!restoreSaved()) {
       dockDefaults();
     }
-    return snapFX.buildLayout();
+    Parent root = snapFX.buildLayout();
+    decorateHeaders();
+    return root;
+  }
+
+  /**
+   * Gives every docked pane's header the three-dots menu. Safe to call repeatedly; call it after
+   * any structural change, since SnapFX may rebuild a pane's header view.
+   */
+  public void decorateHeaders() {
+    for (String id : PANE_IDS) {
+      DockNode node = nodeById(id);
+      if (node != null) {
+        PaneHeaderMenu.decorate(snapFX, node);
+      }
+    }
+  }
+
+  /** The menu buttons in this pane's header; empty when the id is not docked. */
+  public List<MenuButton> headerMenus(String layoutId) {
+    DockNodeView view = viewOf(layoutId);
+    if (view == null) {
+      return List.of();
+    }
+    return view.getHeader().getChildren().stream()
+        .filter(child -> child.getStyleClass().contains(PaneHeaderMenu.MENU_STYLE_CLASS))
+        .map(MenuButton.class::cast)
+        .toList();
+  }
+
+  /** Whether SnapFX's own float button shows in this pane's header; false when not docked. */
+  public boolean floatButtonVisible(String layoutId) {
+    DockNodeView view = viewOf(layoutId);
+    return view != null && view.isFloatButtonVisible();
+  }
+
+  private DockNodeView viewOf(String layoutId) {
+    DockNode node = nodeById(layoutId);
+    return node == null ? null : snapFX.getLayoutEngine().getDockNodeView(node);
   }
 
   /** Hands the current layout to the store. Call from the application's stop hook. */

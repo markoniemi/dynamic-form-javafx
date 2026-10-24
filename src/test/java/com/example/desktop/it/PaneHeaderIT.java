@@ -1,0 +1,102 @@
+package com.example.desktop.it;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
+import com.example.desktop.auth.AuthSession;
+import com.example.desktop.i18n.Messages;
+import com.example.desktop.json.JsonMapperFactory;
+import com.example.desktop.state.AppState;
+import com.example.desktop.ui.UiTest;
+import com.example.desktop.ui.dock.DockLayoutManager;
+import com.example.desktop.ui.dock.LayoutStore;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Base64;
+import java.util.List;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
+import javafx.stage.Stage;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/** The three-dots menu that replaces SnapFX's own float button in each pane header. */
+class PaneHeaderIT extends UiTest {
+
+  @TempDir Path layoutDir;
+
+  @Test
+  void everyPaneHeaderCarriesTheMenuAndNoFloatButton() {
+    DockLayoutManager manager = built();
+
+    assertEquals(1, fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_LIST)).size());
+    assertFalse(fxValue(() -> manager.floatButtonVisible(DockLayoutManager.FORM_LIST)));
+  }
+
+  @Test
+  void theMenuOffersFloatAndClose() {
+    DockLayoutManager manager = built();
+
+    MenuButton menu = fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_FILL)).getFirst();
+    assertEquals(
+        List.of(Messages.get("pane.float"), Messages.get("pane.close")),
+        fxValue(() -> menu.getItems().stream().map(MenuItem::getText).toList()));
+  }
+
+  @Test
+  void closingFromTheMenuRemovesThePaneFromTheGraph() {
+    DockLayoutManager manager = built();
+
+    onFx(
+        () ->
+            manager.headerMenus(DockLayoutManager.SUBMISSIONS).getFirst().getItems().get(1).fire());
+
+    assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+  }
+
+  @Test
+  void decoratingTwiceDoesNotAddASecondMenu() {
+    // SnapFX rebuilds and re-caches its node views on any relayout, and there is no view-created
+    // hook, so decorateHeaders is called again after every structural change.
+    DockLayoutManager manager = built();
+    onFx(manager::decorateHeaders);
+
+    assertEquals(1, fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_LIST)).size());
+  }
+
+  private DockLayoutManager built() {
+    DockLayoutManager manager = onFx(() -> manager(new LayoutStore(layoutDir.resolve("l.json"))));
+    onFx(() -> manager.build(new Stage()));
+    return manager;
+  }
+
+  private static DockLayoutManager manager(LayoutStore store) {
+    AppState state = adminState();
+    return new DockLayoutManager(
+        new org.snapfx.SnapFX(),
+        store,
+        nodeId ->
+            switch (nodeId) {
+              case DockLayoutManager.FORM_LIST,
+                  DockLayoutManager.FORM_FILL,
+                  DockLayoutManager.SUBMISSIONS ->
+                  new Label(nodeId);
+              case DockLayoutManager.FORM_EDITOR -> state.admin().get() ? new Label(nodeId) : null;
+              default -> null;
+            });
+  }
+
+  private static AppState adminState() {
+    AppState state = new AppState();
+    Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
+    String token =
+        encoder.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8))
+            + "."
+            + encoder.encodeToString(
+                "{\"roles\":[\"ADMIN\",\"USER\"]}".getBytes(StandardCharsets.UTF_8))
+            + ".sig";
+    state.session().set(AuthSession.fromToken(token, JsonMapperFactory.create()));
+    return state;
+  }
+}
