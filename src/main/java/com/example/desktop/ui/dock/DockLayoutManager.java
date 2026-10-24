@@ -55,6 +55,15 @@ public class DockLayoutManager {
   }
 
   /**
+   * A manager with a SnapFX of its own, so callers outside this package need no SnapFX import. One
+   * per session: SnapFX binds to the stage it is given and {@link #build} registers a listener, so
+   * neither can be reused.
+   */
+  public static DockLayoutManager create(LayoutStore store, PaneFactory panes) {
+    return new DockLayoutManager(new SnapFX(), store, panes);
+  }
+
+  /**
    * Initialises SnapFX, restores the saved layout if there is a usable one, and returns the root.
    */
   public Parent build(Stage stage) {
@@ -227,6 +236,7 @@ public class DockLayoutManager {
                 }
                 stripPanesTheFactoryDeclines();
                 attachPaneContent();
+                dockEditorIfNewlyAllowed();
                 return true;
               } catch (DockLayoutLoadException e) {
                 // A layout from an older build, or a hand-edited one. Starting with the default
@@ -367,6 +377,19 @@ public class DockLayoutManager {
       if (element instanceof DockNode node) {
         snapFX.remove(node);
       }
+    }
+  }
+
+  /**
+   * The converse of {@link #stripPanesTheFactoryDeclines()}: a layout saved by a plain user has no
+   * editor, and an admin who signs in next would otherwise never see it. The editor is the only
+   * pane whose existence depends on the session, so it is the only one docked here; any other pane
+   * missing from a saved layout was closed on purpose and stays reachable through {@link #reopen}.
+   * The cost is that an admin who closed the editor gets it back after a restart.
+   */
+  private void dockEditorIfNewlyAllowed() {
+    if (nodeById(FORM_EDITOR) == null && panes.create(FORM_EDITOR) != null) {
+      dockAtDefault(FORM_EDITOR);
     }
   }
 

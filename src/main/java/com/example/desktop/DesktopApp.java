@@ -11,13 +11,12 @@ import com.example.desktop.config.DesktopConfig;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
+import com.example.desktop.ui.common.LoginPane;
 import com.example.desktop.ui.common.MainMenuBar;
 import com.example.desktop.ui.common.StatusBar;
 import com.example.desktop.ui.data.SubmissionsPane;
 import com.example.desktop.ui.dock.DockLayoutManager;
 import com.example.desktop.ui.dock.LayoutStore;
-import com.example.desktop.ui.forms.FormEditorPane;
-import com.example.desktop.ui.forms.FormFillPane;
 import com.example.desktop.ui.forms.FormListPane;
 import com.example.dynamicform.api.FormDto;
 import java.util.List;
@@ -25,15 +24,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
-import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
-import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
-import org.snapfx.SnapFX;
 
 /**
  * Application entry point.
@@ -41,6 +36,10 @@ import org.snapfx.SnapFX;
  * <p>The backend URL, locale and layout path come from {@link DesktopConfig}; a system property
  * such as {@code backend.url} wins over the file, so one build runs against a local server or a
  * Testcontainers stack without rebuilding.
+ *
+ * <p>The window has two states: a {@link LoginPane}, and the main window built fresh for each
+ * session. Signing out and in again rebuilds the main window, which is how a session with other
+ * roles gets the right panes.
  */
 public class DesktopApp extends Application {
 
@@ -48,8 +47,26 @@ public class DesktopApp extends Application {
 
   private DockLayoutManager layout;
 
+  /** The live session's panes; replaced on every sign-in and retired on sign-out. */
+  private final AtomicReference<SessionPanes> panes = new AtomicReference<>();
+
+  public DesktopApp() {}
+
+  /** For tests, which must not read the user's configuration or write the user's layout file. */
+  DesktopApp(DesktopConfig config) {
+    this.config = config;
+  }
+
   public static void main(String[] args) {
     launch(args);
+  }
+
+  DockLayoutManager layoutManager() {
+    return layout;
+  }
+
+  SessionPanes panes() {
+    return panes.get();
   }
 
   @Override
@@ -61,83 +78,93 @@ public class DesktopApp extends Application {
       // there is one, is what the user reads.
       System.err.println(Messages.format("config.ignored", String.join(", ", config.ignored())));
     }
-    String backendUrl = config.backendUrl();
-
-    // The window goes up first, showing a status line. Logging in means three HTTP calls and then
-    // waiting for a human in a browser, so it cannot run on the FX thread — and if it fails, the
-    // user has to be told. Throwing out of start() only produces a stack trace on stderr, which in
-    // a jpackage build nobody ever sees.
     stage.setTitle(Messages.get("app.title"));
-    Scene scene = new Scene(status(Messages.get("login.inProgress")), 1100, 750);
+    Scene scene = new Scene(new BorderPane(), 1100, 750);
     // Without this the error style class the field controls add has no visual effect, so a
     // rejected form would look exactly like an accepted one.
     scene
         .getStylesheets()
         .add(DesktopApp.class.getResource("/css/application.css").toExternalForm());
     stage.setScene(scene);
+    showLogin(stage);
     stage.show();
-
-    Task<AuthSession> login =
-        new Task<>() {
-          @Override
-          protected AuthSession call() {
-            return new PkceLoginFlow(
-                    backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
-                .login();
-          }
-        };
-    login.setOnSucceeded(event -> showMainWindow(stage, login.getValue()));
-    login.setOnFailed(event -> reportFatal(login.getException()));
-
-    Thread thread = new Thread(login, "login");
-    thread.setDaemon(true);
-    thread.start();
   }
 
-  private void showMainWindow(Stage stage, AuthSession session) {
-    String backendUrl = config.backendUrl();
+  /**
+   * Puts the sign-in screen up. Logging in means three HTTP calls and then waiting for a human in a
+   * browser, so it cannot run on the FX thread; and if it fails the reason is shown here and the
+   * user can try again.
+   */
+  void showLogin(Stage stage) {
+    stage.setTitle(Messages.get("app.title"));
+    String backendUrl = config().backendUrl();
+    LoginPane[] pane = new LoginPane[1];
+    pane[0] =
+        new LoginPane(
+            () -> {
+              pane[0].setBusy(true);
+              Task<AuthSession> login =
+                  new Task<>() {
+                    @Override
+                    protected AuthSession call() {
+                      return new PkceLoginFlow(
+                              backendUrl,
+                              BrowserLauncher.systemBrowser(),
+                              JsonMapperFactory.create())
+                          .login();
+                    }
+                  };
+              login.setOnSucceeded(event -> showMainWindow(stage, login.getValue()));
+              login.setOnFailed(
+                  event -> {
+                    pane[0].setBusy(false);
+                    Throwable cause = login.getException();
+                    String reason =
+                        cause == null || cause.getMessage() == null || cause.getMessage().isBlank()
+                            ? String.valueOf(cause)
+                            : cause.getMessage();
+                    pane[0].showMessage(Messages.get("login.failed") + ": " + reason);
+                  });
+              Thread thread = new Thread(login, "login");
+              thread.setDaemon(true);
+              thread.start();
+            });
+    stage.getScene().setRoot(pane[0]);
+  }
+
+  /** Builds everything fresh for this session; see the class comment for why. */
+  void showMainWindow(Stage stage, AuthSession session) {
+    String backendUrl = config().backendUrl();
     AppState state = new AppState();
     state.session().set(session);
 
     // The API layer reads the session from here rather than from AppState: it is written and read
     // off the FX thread on every request, and a re-login replaces the whole AuthSession.
     AtomicReference<AuthSession> current = new AtomicReference<>(session);
+    AtomicReference<SessionPanes> mine = new AtomicReference<>();
     ApiClient client =
         new ApiClient(
             backendUrl,
             () -> current.get().accessToken(),
             JsonMapperFactory.create(),
-            reauthenticator(backendUrl, current, state));
+            reauthenticator(backendUrl, current, state, mine));
     FormService formApi = new FormService(client);
     FormDataService dataApi = new FormDataService(client);
 
-    FormListPane list = new FormListPane(formApi, state);
-    FormFillPane fill = new FormFillPane(dataApi, state);
-    SubmissionsPane submissions = new SubmissionsPane(dataApi, formApi, state);
-    FormEditorPane editor = state.admin().get() ? new FormEditorPane(formApi, state) : null;
-    if (editor != null) {
-      // A created or renamed form changes what the list should show.
-      editor.setOnSaved(saved -> list.refreshSilently());
-    }
+    SessionPanes sessionPanes = new SessionPanes(formApi, dataApi, state);
+    mine.set(sessionPanes);
+    panes.set(sessionPanes);
     // The panes never see each other: a selection published to AppState is what loads the form,
     // and the fetch runs off the FX thread.
     state
         .selectedFormKey()
-        .addListener((obs, old, formKey) -> loadForm(formApi, fill, editor, formKey));
+        .addListener((obs, old, formKey) -> loadForm(formApi, sessionPanes, formKey));
 
+    // A new manager, and with it a new SnapFX, for every session: SnapFX binds to the stage it is
+    // given, and build() registers a listener.
     layout =
-        new DockLayoutManager(
-            new SnapFX(),
-            new LayoutStore(config.layoutFile()),
-            nodeId ->
-                switch (nodeId) {
-                  case DockLayoutManager.FORM_LIST -> list;
-                  case DockLayoutManager.FORM_FILL -> fill;
-                  case DockLayoutManager.SUBMISSIONS -> submissions;
-                  // Null for a non-admin, which is how the editor stays out of the layout.
-                  case DockLayoutManager.FORM_EDITOR -> editor;
-                  default -> null;
-                });
+        DockLayoutManager.create(
+            new LayoutStore(config().layoutFile()), sessionPanes.paneFactory());
 
     // Built by the bundle rather than concatenated, so a translation can put the marker first.
     stage.setTitle(
@@ -145,12 +172,22 @@ public class DesktopApp extends Application {
             ? Messages.format("app.titleAdmin", Messages.get("app.title"))
             : Messages.get("app.title"));
     stage.getScene().setRoot(windowRoot(stage, state));
+    startLoad(state, config(), sessionPanes.list(), sessionPanes.submissions());
+  }
+
+  private DesktopConfig config() {
+    if (config == null) {
+      config = DesktopConfig.load();
+    }
+    return config;
   }
 
   /**
    * The first load of the data panes, and the one place a startup message is put on the status
    * line. The loads are silent: they were not asked for, and their counts would overwrite a warning
    * the user has not had time to read.
+   *
+   * <p>Public only because {@code StartupIT} lives in another package.
    */
   public static void startLoad(
       AppState state, DesktopConfig config, FormListPane list, SubmissionsPane submissions) {
@@ -163,18 +200,19 @@ public class DesktopApp extends Application {
 
   /** The window content: the menubar on top, the dock in the centre, the status bar below. */
   private Parent windowRoot(Stage stage, AppState state) {
-    BorderPane root = new BorderPane(layout.build(stage));
+    DockLayoutManager manager = layout;
+    BorderPane root = new BorderPane(manager.build(stage));
     root.setTop(
         new MainMenuBar(
             new MainMenuBar.Actions() {
               @Override
               public void reopen(String layoutId) {
-                layout.reopen(layoutId);
+                manager.reopen(layoutId);
               }
 
               @Override
               public void resetLayout() {
-                root.setCenter(layout.resetToDefaults());
+                root.setCenter(manager.resetToDefaults());
               }
 
               @Override
@@ -189,7 +227,7 @@ public class DesktopApp extends Application {
 
               @Override
               public List<String> reopenable() {
-                return layout.reopenableIds();
+                return manager.reopenableIds();
               }
             }));
     root.setBottom(new StatusBar(state));
@@ -197,16 +235,22 @@ public class DesktopApp extends Application {
   }
 
   /**
-   * Saves the layout and puts the window back to the pre-login status. Task 7 replaces that status
-   * with a real login screen.
+   * Saves the layout, retires the session's panes so no task still in flight can write into the
+   * next session, and goes back to the sign-in screen.
    */
   void signOut(Stage stage) {
-    layout.saveLayout();
-    stage.getScene().setRoot(status(Messages.get("login.inProgress")));
+    if (layout != null) {
+      layout.saveLayout();
+      layout = null;
+    }
+    SessionPanes retired = panes.getAndSet(null);
+    if (retired != null) {
+      retired.retire();
+    }
+    showLogin(stage);
   }
 
-  private static void loadForm(
-      FormService formApi, FormFillPane fill, FormEditorPane editor, String formKey) {
+  private static void loadForm(FormService formApi, SessionPanes panes, String formKey) {
     if (formKey == null || formKey.isBlank()) {
       return;
     }
@@ -218,23 +262,32 @@ public class DesktopApp extends Application {
           }
         };
     load.setOnSucceeded(
-        event -> {
-          fill.show(load.getValue());
-          if (editor != null) {
-            // An admin selecting a form gets it loaded for editing too, which is the only route to
-            // updating or deleting an existing definition.
-            editor.edit(load.getValue());
-          }
-        });
+        event ->
+            panes.runIfCurrent(
+                () -> {
+                  panes.fill().show(load.getValue());
+                  if (panes.editor() != null) {
+                    // An admin selecting a form gets it loaded for editing too, which is the only
+                    // route to updating or deleting an existing definition.
+                    panes.editor().edit(load.getValue());
+                  }
+                }));
     load.setOnFailed(
-        event -> {
-          // Most often a form deleted since the list was last refreshed. Without this the click
-          // would do nothing at all and leave the previous form on screen as if it had worked.
-          Throwable cause = load.getException();
-          fill.show(null);
-          fill.showMessage(
-              cause == null ? Messages.get("common.error") : String.valueOf(cause.getMessage()));
-        });
+        event ->
+            panes.runIfCurrent(
+                () -> {
+                  // Most often a form deleted since the list was last refreshed. Without this the
+                  // click would do nothing at all and leave the previous form on screen as if it
+                  // had worked.
+                  Throwable cause = load.getException();
+                  panes.fill().show(null);
+                  panes
+                      .fill()
+                      .showMessage(
+                          cause == null
+                              ? Messages.get("common.error")
+                              : String.valueOf(cause.getMessage()));
+                }));
     Thread thread = new Thread(load, "load-form");
     thread.setDaemon(true);
     thread.start();
@@ -249,19 +302,22 @@ public class DesktopApp extends Application {
    * browser and waits for a human. {@code ApiClient} runs one at a time, so this cannot produce two
    * browser windows.
    *
-   * <p>A session with different roles does not re-dock the layout: whether the editor pane exists
-   * was decided when the window was built. Signing back in as the same user, which is the case this
-   * is for, keeps them the same.
+   * <p>Signing back in as the same user, which is the case this is for, keeps the roles the same; a
+   * session with other roles comes from signing out and in, which rebuilds the window.
    */
   private static Reauthenticator reauthenticator(
-      String backendUrl, AtomicReference<AuthSession> current, AppState state) {
+      String backendUrl,
+      AtomicReference<AuthSession> current,
+      AppState state,
+      AtomicReference<SessionPanes> mine) {
     return () -> {
       AuthSession fresh =
           new PkceLoginFlow(backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
               .login();
       current.set(fresh);
-      // AppState belongs to the UI, so it is only ever written on the FX thread.
-      Platform.runLater(() -> state.session().set(fresh));
+      // AppState belongs to the UI, so it is only ever written on the FX thread; and not at all
+      // once the session it belongs to has been signed out.
+      Platform.runLater(() -> mine.get().runIfCurrent(() -> state.session().set(fresh)));
       return fresh.accessToken();
     };
   }
@@ -272,7 +328,7 @@ public class DesktopApp extends Application {
     Alert alert =
         new Alert(
             Alert.AlertType.ERROR,
-            message == null || message.isBlank() ? cause.toString() : message);
+            message == null || message.isBlank() ? String.valueOf(cause) : message);
     alert.setHeaderText(Messages.get("login.failed"));
     alert.showAndWait();
     Platform.exit();
@@ -289,11 +345,5 @@ public class DesktopApp extends Application {
       // Losing the layout is not worth a crash trace on the way out.
       System.err.println("Could not save the window layout: " + e.getMessage());
     }
-  }
-
-  private static StackPane status(String text) {
-    Label label = new Label(text);
-    label.setAlignment(Pos.CENTER);
-    return new StackPane(label);
   }
 }
