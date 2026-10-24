@@ -2,6 +2,8 @@ package com.example.desktop.it;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.i18n.Messages;
@@ -75,6 +77,39 @@ class PaneHeaderIT extends UiTest {
 
     int menus = fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_EDITOR)).size();
     assertEquals(1, menus);
+  }
+
+  @Test
+  void aPaneClosedFromTheMenuIsHiddenAndReopensWithItsContent() {
+    DockLayoutManager manager = built();
+
+    onFx(() -> menuItem(manager, DockLayoutManager.SUBMISSIONS, "pane.close").fire());
+
+    assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+    assertEquals(List.of(DockLayoutManager.SUBMISSIONS), fxValue(manager::hiddenLayoutIds));
+    assertTrue(fxValue(() -> manager.reopen(DockLayoutManager.SUBMISSIONS)));
+    assertTrue(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(
+        fxValue(() -> manager.nodeById(DockLayoutManager.SUBMISSIONS).getContent()),
+        "a reopened pane with no content renders as an empty panel");
+    assertEquals(List.of(), fxValue(manager::hiddenLayoutIds));
+  }
+
+  @Test
+  void aPaneClosedFromTheMenuIsNotCarriedAsHiddenAcrossARestart() {
+    LayoutStore store = new LayoutStore(layoutDir.resolve("hidden-restart.json"));
+    DockLayoutManager first = onFx(() -> manager(store));
+    onFx(() -> first.build(new Stage()));
+    onFx(() -> menuItem(first, DockLayoutManager.SUBMISSIONS, "pane.close").fire());
+    onFx(first::saveLayout);
+
+    DockLayoutManager second = onFx(() -> manager(store));
+    onFx(() -> second.build(new Stage()));
+
+    assertFalse(fxValue(() -> second.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+    assertEquals(List.of(), fxValue(second::hiddenLayoutIds), "hidden nodes are not saved");
+    assertTrue(fxValue(() -> second.reopen(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(fxValue(() -> second.nodeById(DockLayoutManager.SUBMISSIONS).getContent()));
   }
 
   private static MenuItem menuItem(DockLayoutManager manager, String layoutId, String key) {

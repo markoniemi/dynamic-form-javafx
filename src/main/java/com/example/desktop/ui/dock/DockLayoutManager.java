@@ -322,6 +322,11 @@ public class DockLayoutManager {
     return dockAtDefault(layoutId);
   }
 
+  /** Layout ids of panes SnapFX is holding hidden: closed by the user, still in the graph. */
+  public List<String> hiddenLayoutIds() {
+    return snapFX.getHiddenNodes().stream().map(DockNode::getId).toList();
+  }
+
   /** The ids the factory will build that are not currently docked. */
   public List<String> reopenableIds() {
     List<String> docked = layoutIdsInOrder();

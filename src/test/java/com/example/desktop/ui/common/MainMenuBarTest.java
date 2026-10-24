@@ -10,6 +10,7 @@ import java.util.List;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import org.junit.jupiter.api.Test;
 
 class MainMenuBarTest extends UiTest {
@@ -22,7 +23,12 @@ class MainMenuBarTest extends UiTest {
     onFx(() -> view.show()); // the list is built on show, so a pane closed meanwhile appears
     assertEquals(
         List.of(Messages.get("navigation.submissions"), Messages.get("menu.resetLayout")),
-        fxValue(() -> view.getItems().stream().map(MenuItem::getText).toList()));
+        fxValue(
+            () ->
+                view.getItems().stream()
+                    .filter(item -> !(item instanceof SeparatorMenuItem))
+                    .map(MenuItem::getText)
+                    .toList()));
   }
 
   @Test

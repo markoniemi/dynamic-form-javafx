@@ -7,6 +7,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 
 /**
  * File, View and Help. The View menu is what makes a closed pane reachable again, so its items are
@@ -49,6 +50,9 @@ public class MainMenuBar extends MenuBar {
       MenuItem reopen = new MenuItem(DockLayoutManager.titleOf(id));
       reopen.setOnAction(event -> actions.reopen(id));
       view.getItems().add(reopen);
+    }
+    if (!view.getItems().isEmpty()) {
+      view.getItems().add(new SeparatorMenuItem());
     }
     view.getItems().add(item("menu.resetLayout", actions::resetLayout));
   }
