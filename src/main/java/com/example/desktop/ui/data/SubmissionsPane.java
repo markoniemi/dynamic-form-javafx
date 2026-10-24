@@ -79,7 +79,7 @@ public class SubmissionsPane extends BorderPane {
         .addListener((obs, old, selected) -> updateActions());
     state.admin().addListener((obs, old, now) -> updateActions());
     // A submission saved elsewhere (the fill pane publishes it) means this list is stale.
-    state.selectedSubmission().addListener((obs, old, saved) -> refresh());
+    state.selectedSubmission().addListener((obs, old, saved) -> load(false));
     // Keep a live filter in step when the selection moves to another form.
     state.selectedFormKey().addListener((obs, old, key) -> applyFilter());
     updateActions();
@@ -109,6 +109,14 @@ public class SubmissionsPane extends BorderPane {
 
   /** Reloads off the FX thread. */
   public void refresh() {
+    load(true);
+  }
+
+  /**
+   * Loads the rows. Only a refresh somebody asked for announces its count: one driven by a listener
+   * or a callback would otherwise overwrite the message the user's own action just produced.
+   */
+  private void load(boolean announce) {
     banner.clear();
     Task<List<FormDataDto>> call =
         new Task<>() {
@@ -121,7 +129,9 @@ public class SubmissionsPane extends BorderPane {
         event -> {
           busy.setBusy(false);
           all.setAll(call.getValue());
-          state.status().set(Messages.format("status.submissionsLoaded", all.size()));
+          if (announce) {
+            state.status().set(Messages.format("status.submissionsLoaded", all.size()));
+          }
           if (all.isEmpty()) {
             banner.show(Messages.get("submissions.noSubmissions"));
           }
@@ -258,7 +268,7 @@ public class SubmissionsPane extends BorderPane {
             return null;
           }
         };
-    call.setOnSucceeded(event -> refresh());
+    call.setOnSucceeded(event -> load(false));
     call.setOnFailed(
         event -> {
           busy.setBusy(false);

@@ -136,6 +136,32 @@ class SubmissionsIT extends UiTest {
         "an orphaned stored value must survive an edit of the fields that remain");
   }
 
+  @Test
+  void aSubmitConfirmationSurvivesTheRefreshItTriggers() {
+    // Saving publishes the submission, which makes the pane reload; that reload was not asked for,
+    // so it must not replace "Submission saved" with a row count.
+    FormDataService api = dataApi("user", "user");
+    FormDataDto saved = api.submit("contact", contactValues());
+    AppState state = state("user", "user");
+    SubmissionsPane pane = onFx(() -> new SubmissionsPane(api, formApi("user", "user"), state));
+    onFx(pane::refresh);
+    waitUntil(() -> fxValue(state.status()::get).endsWith(" submissions"));
+
+    onFx(() -> pane.openForEdit(saved.getId()));
+    waitUntil(() -> fxValue(() -> pane.editControlFor("name")) != null);
+    onFx(() -> pane.editorPane().submit());
+    waitUntil(() -> "Submission saved".equals(fxValue(state.status()::get)));
+    waitUntil(() -> !fxValue(pane::editing));
+    // The reload is silent, so there is nothing to wait on; give it time to land and overwrite.
+    try {
+      Thread.sleep(1500);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+
+    assertEquals("Submission saved", fxValue(state.status()::get));
+  }
+
   private static Map<String, Object> contactValues() {
     return Map.of(
         "name", "SubmissionsIT",

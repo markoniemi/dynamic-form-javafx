@@ -69,6 +69,18 @@ public class FormListPane extends BorderPane {
 
   /** Reloads the list off the FX thread. */
   public void refresh() {
+    load(true);
+  }
+
+  /**
+   * Reloads the list without announcing the count in the status line: a reload driven by something
+   * else, such as a saved form, must not overwrite that action's own message.
+   */
+  public void refreshSilently() {
+    load(false);
+  }
+
+  private void load(boolean announce) {
     banner.clear();
     Task<List<FormListItemDto>> call =
         new Task<>() {
@@ -86,7 +98,9 @@ public class FormListPane extends BorderPane {
               call.getValue().stream()
                   .sorted(Comparator.comparing(FormListItemDto::getTitle))
                   .toList());
-          state.status().set(Messages.format("status.formsLoaded", items.size()));
+          if (announce) {
+            state.status().set(Messages.format("status.formsLoaded", items.size()));
+          }
           if (items.isEmpty()) {
             banner.show(Messages.get("forms.noForms"));
           }

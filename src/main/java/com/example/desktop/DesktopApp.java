@@ -54,6 +54,11 @@ public class DesktopApp extends Application {
   public void start(Stage stage) {
     config = DesktopConfig.load();
     Messages.setLocale(config.locale());
+    if (!config.ignored().isEmpty()) {
+      // The record: written even when login never gets as far as a window. The status bar, once
+      // there is one, is what the user reads.
+      System.err.println(Messages.format("config.ignored", String.join(", ", config.ignored())));
+    }
     String backendUrl = config.backendUrl();
 
     // The window goes up first, showing a status line. Logging in means three HTTP calls and then
@@ -110,7 +115,7 @@ public class DesktopApp extends Application {
     FormEditorPane editor = state.admin().get() ? new FormEditorPane(formApi, state) : null;
     if (editor != null) {
       // A created or renamed form changes what the list should show.
-      editor.setOnSaved(saved -> list.refresh());
+      editor.setOnSaved(saved -> list.refreshSilently());
     }
     // The panes never see each other: a selection published to AppState is what loads the form,
     // and the fetch runs off the FX thread.
