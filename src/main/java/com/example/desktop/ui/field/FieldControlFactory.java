@@ -1,5 +1,6 @@
 package com.example.desktop.ui.field;
 
+import com.example.desktop.i18n.Messages;
 import com.example.dynamicform.api.FieldDto;
 import com.example.dynamicform.api.FieldOptionDto;
 import java.time.LocalDate;
@@ -110,7 +111,7 @@ public final class FieldControlFactory {
 
   private static FieldControl unknown(FieldDto field) {
     TextField placeholder = new TextField();
-    placeholder.setPromptText("Unsupported field type: " + field.getType());
+    placeholder.setPromptText(Messages.format("field.unsupportedType", field.getType()));
     placeholder.setDisable(true);
     return new UnknownFieldControl(field.getName(), placeholder);
   }

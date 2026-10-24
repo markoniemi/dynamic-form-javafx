@@ -55,7 +55,7 @@ public class App extends Application {
     // waiting for a human in a browser, so it cannot run on the FX thread — and if it fails, the
     // user has to be told. Throwing out of start() only produces a stack trace on stderr, which in
     // a jpackage build nobody ever sees.
-    stage.setTitle("Dynamic Form Desktop");
+    stage.setTitle(Messages.get("app.title"));
     Scene scene = new Scene(status("Signing in — complete the login in your browser…"), 1100, 750);
     // Without this the error style class the field controls add has no visual effect, so a
     // rejected form would look exactly like an accepted one.
@@ -125,7 +125,11 @@ public class App extends Application {
                   default -> null;
                 });
 
-    stage.setTitle("Dynamic Form Desktop" + (session.isAdmin() ? " (admin)" : ""));
+    // Built by the bundle rather than concatenated, so a translation can put the marker first.
+    stage.setTitle(
+        session.isAdmin()
+            ? Messages.format("app.titleAdmin", Messages.get("app.title"))
+            : Messages.get("app.title"));
     stage.getScene().setRoot(layout.build(stage));
     list.refresh();
     submissions.refresh();
@@ -199,7 +203,7 @@ public class App extends Application {
         new Alert(
             Alert.AlertType.ERROR,
             message == null || message.isBlank() ? cause.toString() : message);
-    alert.setHeaderText("Cannot sign in");
+    alert.setHeaderText(Messages.get("login.failed"));
     alert.showAndWait();
     Platform.exit();
   }
