@@ -283,9 +283,12 @@ docs this plan first referenced:
   default layout. A layout that names an id this build no longer knows degrades through
   `DockNodeFactory.createNode(String)` returning null.
 - `setNodeFactory(DockNodeFactory)`, `floatNode(DockNode)`, `remove(DockNode)`, `hide`, `restore`.
-- Default layout: list on the left, fill pane center, submissions below; editor hidden unless ADMIN.
-- Multiple fill panes are allowed: id scheme `form-fill:{formKey}`. The node factory parses the prefix on load.
-  Double-click in the list opens a form in a new docked tab; "open in window" uses `floatNode`.
+- Default layout: forms top-left, submissions below them, form view on the right with the editor tabbed with it
+  (ADMIN only); root divider at 0.33. See 9.1.
+- Multiple fill panes are planned, not built: id scheme `form-fill:{formKey}`, with the node factory parsing the
+  prefix on load. Double-click in the list would open a form in a new docked tab. Deferred, see 9.4. Floating a
+  pane to its own window uses `floatNode`, reached from *Float window* in the pane's three-dots header menu; the
+  built-in float button is hidden (9.1).
 - Role gating: do not dock the editor node for non-admins; also strip it from a loaded layout with `remove`.
 - The jar ships **no POM**, so its dependencies are not transitive. Its `module-info` requires
   `com.google.gson`, `javafx.controls`, `javafx.graphics`, `javafx.base` and `java.desktop` — the client must
@@ -553,8 +556,11 @@ published config file, and Ryuk for cleanup.
 
 ### 9.3 Findings worth keeping
 
-**SnapFX 0.8.0, read from the jar's bytecode** (it ships no sources, and the 0.6.x documentation online is
-wrong on these points):
+**SnapFX 0.8.0.** The jar ships no sources, and the 0.6.x documentation online is wrong on these points, so
+each claim below says how it was established. The ratio rule and the serialization behaviour were found by
+experiment: an implementer probed `setRootSplitRatios` both before and after `buildLayout()`, and a layout that
+was saved and reloaded came back as docked = form-list, form-fill, form-editor with hidden = none. The missing
+view-created hook was found by reading the released jar's bytecode. Re-check all three on a version bump.
 
 - `setRootSplitRatios` needs as many values as the root has children, and works both before and after
   `buildLayout()`.
@@ -565,8 +571,9 @@ wrong on these points):
   fresh-dock path, not the restore path.
 
 **A restore-path bug, and the trade-off in its fix.** An admin opening a layout that a plain user had saved never
-got the editor pane: the saved layout has no editor node and nothing docked one. `restoreSaved` now docks any
-pane the `PaneFactory` allows and the file lacks, the counterpart of `stripPanesTheFactoryDeclines`. The accepted
+got the editor pane: the saved layout has no editor node and nothing docked one. `restoreSaved` now docks the
+editor pane when the `PaneFactory` allows it and the file lacks it, the counterpart for that one pane of
+`stripPanesTheFactoryDeclines`. The accepted
 side effect is that an admin who closed the editor gets it back after a restart. Because hidden nodes do not
 survive serialization, "the admin closed it" and "this was never an admin's layout" are the same state on disk,
 and telling them apart would mean persisting a set of panes the user closed. That was judged not worth building:
