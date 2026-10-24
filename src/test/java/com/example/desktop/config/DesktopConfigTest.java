@@ -80,6 +80,87 @@ class DesktopConfigTest {
     assertEquals(List.of("locale"), config.ignored());
   }
 
+  @Test
+  void anIllegalLayoutPathFallsBackToTheDefaultAndIsReported() {
+    Properties overrides = new Properties();
+    overrides.setProperty("layout.file", "bad\0path");
+    DesktopConfig config = DesktopConfig.load(dir.resolve("absent.properties"), overrides);
+    assertEquals(defaultLayout(), config.layoutFile());
+    assertEquals(List.of("layout.file"), config.ignored());
+  }
+
+  @Test
+  void anIllegalConfigFilePropertyFallsBackToTheDefaultLocationAndIsReported() {
+    String old = System.getProperty("config.file");
+    System.setProperty("config.file", "bad\0path");
+    try {
+      DesktopConfig config = DesktopConfig.load();
+      assertTrue(config.ignored().contains("config.file"));
+    } finally {
+      if (old == null) {
+        System.clearProperty("config.file");
+      } else {
+        System.setProperty("config.file", old);
+      }
+    }
+  }
+
+  @Test
+  void aNamedConfigFileThatDoesNotExistIsReported() {
+    String old = System.getProperty("config.file");
+    System.setProperty("config.file", dir.resolve("typo.properties").toString());
+    try {
+      assertEquals(List.of("config.file"), DesktopConfig.load().ignored());
+    } finally {
+      if (old == null) {
+        System.clearProperty("config.file");
+      } else {
+        System.setProperty("config.file", old);
+      }
+    }
+  }
+
+  @Test
+  void aMalformedUnicodeEscapeIsReportedAsTheConfigFile() throws IOException {
+    DesktopConfig config = DesktopConfig.load(write("backend.url=\\u12\n"), new Properties());
+    assertEquals("http://localhost:8080", config.backendUrl());
+    assertEquals(List.of("config.file"), config.ignored());
+  }
+
+  @Test
+  void aValidLocaleIsAccepted() throws IOException {
+    DesktopConfig config = DesktopConfig.load(write("locale=fi-FI\n"), new Properties());
+    assertEquals(Locale.forLanguageTag("fi-FI"), config.locale());
+    assertTrue(config.ignored().isEmpty());
+  }
+
+  @Test
+  void theLayoutPathDefaultsToTheUserHome() {
+    DesktopConfig config = DesktopConfig.load(dir.resolve("absent.properties"), new Properties());
+    assertEquals(defaultLayout(), config.layoutFile());
+  }
+
+  @Test
+  void anHttpsUrlIsAccepted() throws IOException {
+    DesktopConfig config =
+        DesktopConfig.load(write("backend.url=https://example.test\n"), new Properties());
+    assertEquals("https://example.test", config.backendUrl());
+    assertTrue(config.ignored().isEmpty());
+  }
+
+  @Test
+  void anInvalidSystemPropertyOverrideFallsBackToTheDefaultAndIsReported() throws IOException {
+    Properties overrides = new Properties();
+    overrides.setProperty("backend.url", "nonsense");
+    DesktopConfig config = DesktopConfig.load(write("backend.url=http://from-file:1\n"), overrides);
+    assertEquals("http://localhost:8080", config.backendUrl());
+    assertEquals(List.of("backend.url"), config.ignored());
+  }
+
+  private static Path defaultLayout() {
+    return Path.of(System.getProperty("user.home"), ".dynamic-form-desktop", "layout.json");
+  }
+
   private Path write(String text) throws IOException {
     return Files.writeString(dir.resolve("config.properties"), text);
   }

@@ -5,6 +5,7 @@ import java.io.Reader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,19 +51,37 @@ public final class DesktopConfig {
    * else the defaults. System properties override the file.
    */
   public static DesktopConfig load() {
+    List<String> ignored = new ArrayList<>();
+    Path defaultFile = defaultDir().resolve("config.properties");
     String named = System.getProperty("config.file");
-    Path file =
-        named == null || named.isBlank()
-            ? defaultDir().resolve("config.properties")
-            : Path.of(named);
-    return load(file, System.getProperties());
+    Path file = defaultFile;
+    boolean explicit = false;
+    if (named != null && !named.isBlank()) {
+      Path parsed = parsePath(named);
+      if (parsed == null) {
+        ignored.add("config.file");
+      } else {
+        file = parsed;
+        explicit = true;
+      }
+    }
+    return load(file, explicit, System.getProperties(), ignored);
   }
 
   /** As {@link #load()}, from an explicit file and an explicit set of overriding properties. */
   public static DesktopConfig load(Path file, Properties overrides) {
-    List<String> ignored = new ArrayList<>();
+    return load(file, false, overrides, new ArrayList<>());
+  }
+
+  private static DesktopConfig load(
+      Path file, boolean explicit, Properties overrides, List<String> ignored) {
     Properties values = new Properties();
-    if (Files.exists(file)) {
+    if (!Files.exists(file)) {
+      // Only a file the user named is worth reporting; no file at the default place is normal.
+      if (explicit) {
+        ignored.add("config.file");
+      }
+    } else {
       try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
         values.load(reader);
       } catch (IOException | RuntimeException e) {
@@ -105,13 +124,27 @@ public final class DesktopConfig {
       }
     }
 
+    Path layoutFile = defaultDir().resolve("layout.json");
     String layout = values.getProperty(LAYOUT_FILE);
-    Path layoutFile =
-        layout == null || layout.isBlank()
-            ? defaultDir().resolve("layout.json")
-            : Path.of(layout.trim());
+    if (layout != null && !layout.isBlank()) {
+      Path parsed = parsePath(layout.trim());
+      if (parsed == null) {
+        ignored.add(LAYOUT_FILE);
+      } else {
+        layoutFile = parsed;
+      }
+    }
 
     return new DesktopConfig(url, locale, layoutFile, ignored);
+  }
+
+  /** The path, or null when the text is not a legal path on this platform. */
+  private static Path parsePath(String text) {
+    try {
+      return Path.of(text);
+    } catch (InvalidPathException e) {
+      return null;
+    }
   }
 
   private static boolean isHttpUri(String text) {
