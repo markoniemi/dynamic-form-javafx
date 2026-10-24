@@ -57,8 +57,9 @@ public class PkceLoginFlow {
     String issuer =
         new ApiClient(backendUrl, () -> null, mapper).getText(ApiPaths.CONFIG_ISSUER_URI);
     JsonNode metadata = discover(issuer);
-    String authorizationEndpoint = metadata.get("authorization_endpoint").asText();
-    String tokenEndpoint = metadata.get("token_endpoint").asText();
+    String authorizationEndpoint =
+        required(metadata, "authorization_endpoint", "the OIDC metadata at " + issuer);
+    String tokenEndpoint = required(metadata, "token_endpoint", "the OIDC metadata at " + issuer);
 
     PkceCodes codes = PkceCodes.generate();
     try (LoopbackCallbackServer callback = new LoopbackCallbackServer(CALLBACK_PORT)) {
@@ -119,10 +120,25 @@ public class PkceLoginFlow {
           "The token request was rejected with " + response.statusCode() + ": " + response.body());
     }
     try {
-      return mapper.readTree(response.body()).get("access_token").asText();
+      return required(mapper.readTree(response.body()), "access_token", "the token response");
     } catch (IOException e) {
       throw new IllegalStateException("Cannot read the token response", e);
     }
+  }
+
+  /**
+   * Reads a field that the flow cannot continue without.
+   *
+   * <p>A wrong issuer URL, a trimmed discovery document, or an authorization server answering an
+   * error with status 200 all used to surface as a bare {@link NullPointerException} from an
+   * unguarded {@code get(...).asText()} — a stack trace naming nothing the user could act on.
+   */
+  private static String required(JsonNode document, String field, String source) {
+    JsonNode value = document.path(field);
+    if (value.isMissingNode() || value.asText().isBlank()) {
+      throw new IllegalStateException(field + " is missing from " + source + ": " + document);
+    }
+    return value.asText();
   }
 
   private HttpResponse<String> send(HttpRequest request) {
