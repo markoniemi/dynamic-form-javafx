@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.api.ApiClient;
-import com.example.desktop.api.FormApi;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
+import com.example.desktop.api.FormService;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
@@ -42,7 +42,7 @@ class SubmissionsIT extends UiTest {
   @Test
   void filteringByTheSelectedFormNarrowsTheRowsClientSide() {
     // GET /api/form-data has no formKey parameter, so the pane filters what it is given.
-    FormDataApi api = dataApi("user", "user");
+    FormDataService api = dataApi("user", "user");
     api.submit("contact", contactValues());
     api.submit("feedback", feedbackValues());
     AppState state = state("user", "user");
@@ -116,7 +116,7 @@ class SubmissionsIT extends UiTest {
   void savingAnEditKeepsStoredValuesThisFormCanNoLongerRender() {
     // The backend replaces `data` wholesale, so anything missing from the PUT body is deleted for
     // good. A field renamed after this submission was made must not cost the user that answer.
-    FormDataApi api = dataApi("user", "user");
+    FormDataService api = dataApi("user", "user");
     Map<String, Object> stale = new LinkedHashMap<>(contactValues());
     stale.put("removedField", "orphan");
     FormDataDto saved = api.submit("contact", stale);
@@ -170,12 +170,12 @@ class SubmissionsIT extends UiTest {
         TokenClient.accessToken(username, password), JsonMapperFactory.create());
   }
 
-  private static FormApi formApi(String username, String password) {
-    return new FormApi(client(username, password));
+  private static FormService formApi(String username, String password) {
+    return new FormService(client(username, password));
   }
 
-  private static FormDataApi dataApi(String username, String password) {
-    return new FormDataApi(client(username, password));
+  private static FormDataService dataApi(String username, String password) {
+    return new FormDataService(client(username, password));
   }
 
   private static ApiClient client(String username, String password) {

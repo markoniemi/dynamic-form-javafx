@@ -1,7 +1,7 @@
 package com.example.desktop.ui.data;
 
-import com.example.desktop.api.FormApi;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
+import com.example.desktop.api.FormService;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
@@ -35,8 +35,8 @@ import javafx.scene.layout.StackPane;
  */
 public class SubmissionsPane extends BorderPane {
 
-  private final FormDataApi dataApi;
-  private final FormApi formApi;
+  private final FormDataService dataApi;
+  private final FormService formApi;
   private final AppState state;
 
   private final ObservableList<FormDataDto> all = FXCollections.observableArrayList();
@@ -53,7 +53,7 @@ public class SubmissionsPane extends BorderPane {
 
   private boolean filterBySelectedForm;
 
-  public SubmissionsPane(FormDataApi dataApi, FormApi formApi, AppState state) {
+  public SubmissionsPane(FormDataService dataApi, FormService formApi, AppState state) {
     this.dataApi = dataApi;
     this.formApi = formApi;
     this.state = state;

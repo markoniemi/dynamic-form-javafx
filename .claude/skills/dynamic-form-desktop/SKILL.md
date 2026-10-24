@@ -26,9 +26,9 @@ no code from it**: DTOs and the integration-test stack come from published artif
 ```
 pom.xml                                The install-snapfx profile fetches SnapFX; it is not on Maven Central
 src/main/java/com/example/desktop/
-  App.java                             Application entry: wires services, builds the layout
+  DesktopApp.java                      Application entry: wires services, builds the layout
   auth/                                PkceCodes, LoopbackCallbackServer, BrowserLauncher, AuthSession, PkceLoginFlow
-  api/                                 ApiPaths, Roles, ProblemDetail, ApiException, ApiClient, FormApi, FormDataApi
+  api/                                 Roles, ProblemDetail, ApiException, ApiClient, FormService, FormDataService
   json/JsonMapperFactory.java          the configured ObjectMapper
   ui/dock/                             LayoutStore, DockLayoutManager — the only package importing org.snapfx
   ui/forms/, ui/data/, ui/common/      panes

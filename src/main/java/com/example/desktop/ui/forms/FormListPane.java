@@ -1,6 +1,6 @@
 package com.example.desktop.ui.forms;
 
-import com.example.desktop.api.FormApi;
+import com.example.desktop.api.FormService;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
@@ -25,14 +25,14 @@ import javafx.scene.layout.StackPane;
  */
 public class FormListPane extends BorderPane {
 
-  private final FormApi api;
+  private final FormService api;
   private final AppState state;
   private final ObservableList<FormListItemDto> items = FXCollections.observableArrayList();
   private final ListView<FormListItemDto> listView = new ListView<>(items);
   private final ErrorBanner banner = new ErrorBanner();
   private final BusyOverlay busy = new BusyOverlay();
 
-  public FormListPane(FormApi api, AppState state) {
+  public FormListPane(FormService api, AppState state) {
     this.api = api;
     this.state = state;
 

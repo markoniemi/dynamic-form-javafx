@@ -158,8 +158,8 @@ class ShellIT extends UiTest {
   }
 
   /**
-   * Mirrors how App builds a factory: the editor is declined for a non-admin, which is the single
-   * place that decision is made.
+   * Mirrors how DesktopApp builds a factory: the editor is declined for a non-admin, which is the
+   * single place that decision is made.
    */
   private static DockLayoutManager manager(LayoutStore store, AppState state) {
     return new DockLayoutManager(
@@ -172,7 +172,8 @@ class ShellIT extends UiTest {
                   DockLayoutManager.SUBMISSIONS ->
                   new Label(nodeId);
               case DockLayoutManager.FORM_EDITOR -> state.admin().get() ? new Label(nodeId) : null;
-              // App's factory ends in `default -> null`. Returning a pane for any id at all hides
+              // DesktopApp's factory ends in `default -> null`. Returning a pane for any id at all
+              // hides
               // the case that matters: on a restore SnapFX asks by dockNodeId, not by layout id.
               default -> null;
             });

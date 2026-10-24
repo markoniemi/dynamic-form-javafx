@@ -1,8 +1,8 @@
 package com.example.desktop.it;
 
 import com.example.desktop.api.ApiClient;
-import com.example.desktop.api.FormApi;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
+import com.example.desktop.api.FormService;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.UiTest;
@@ -17,12 +17,13 @@ class ReadPathIT extends UiTest {
 
   @Test
   void listingAFormThenFillingAndSubmittingItCreatesASubmission() {
-    FormApi formApi = formApi("user", "user");
-    FormDataApi dataApi = formDataApi("user", "user");
+    FormService formApi = formApi("user", "user");
+    FormDataService dataApi = formDataApi("user", "user");
     AppState state = new AppState();
     FormListPane list = onFx(() -> new FormListPane(formApi, state));
     FormFillPane fill = onFx(() -> new FormFillPane(dataApi, state));
-    // The panes never reference each other; App wires them through AppState exactly like this.
+    // The panes never reference each other; DesktopApp wires them through AppState exactly like
+    // this.
     state.selectedFormKey().addListener((obs, old, key) -> fill.show(formApi.get(key)));
 
     onFx(list::refresh);
@@ -61,12 +62,12 @@ class ReadPathIT extends UiTest {
         "urgency", "low");
   }
 
-  private static FormApi formApi(String username, String password) {
-    return new FormApi(client(username, password));
+  private static FormService formApi(String username, String password) {
+    return new FormService(client(username, password));
   }
 
-  private static FormDataApi formDataApi(String username, String password) {
-    return new FormDataApi(client(username, password));
+  private static FormDataService formDataApi(String username, String password) {
+    return new FormDataService(client(username, password));
   }
 
   private static ApiClient client(String username, String password) {

@@ -66,8 +66,8 @@ class ProblemDetailMappingTest {
 
   @Test
   void pathHelpersMatchTheBackendRoutes() {
-    assertEquals("/api/forms/feedback", ApiPaths.form("feedback"));
-    assertEquals("/api/form-data/feedback", ApiPaths.formData("feedback"));
-    assertEquals("/api/form-data/submission/7", ApiPaths.submission(7L));
+    assertEquals("/api/forms/feedback", FormService.path("feedback"));
+    assertEquals("/api/form-data/feedback", FormDataService.path("feedback"));
+    assertEquals("/api/form-data/submission/7", FormDataService.submissionPath(7L));
   }
 }

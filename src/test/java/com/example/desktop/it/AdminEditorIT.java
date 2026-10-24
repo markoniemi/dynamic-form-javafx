@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.api.ApiClient;
-import com.example.desktop.api.FormApi;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
+import com.example.desktop.api.FormService;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
@@ -28,7 +28,7 @@ class AdminEditorIT extends UiTest {
 
   @AfterEach
   void removeTestForms() {
-    FormApi admin = formApi("admin", "admin");
+    FormService admin = formApi("admin", "admin");
     for (String key : List.of(ALL_TYPES_KEY, "it-denied", "it-doomed")) {
       try {
         admin.delete(key);
@@ -41,7 +41,7 @@ class AdminEditorIT extends UiTest {
   @Test
   void anAdminCreatesAFormWithEveryFieldTypeAndItComesBack() {
     // No seeded form has a number field, so the only way to cover all nine types is to make one.
-    FormApi api = formApi("admin", "admin");
+    FormService api = formApi("admin", "admin");
     FormEditorPane editor = onFx(() -> new FormEditorPane(api, state("admin", "admin")));
 
     onFx(
@@ -94,7 +94,7 @@ class AdminEditorIT extends UiTest {
 
   @Test
   void deletingAFormThatAFillPaneIsOpenOnFailsReadablyRatherThanUnhandled() {
-    FormApi adminApi = formApi("admin", "admin");
+    FormService adminApi = formApi("admin", "admin");
     adminApi.create(formWithKey("it-doomed"));
     FormFillPane fill =
         onFx(() -> new FormFillPane(dataApi("user", "user"), state("user", "user")));
@@ -158,12 +158,12 @@ class AdminEditorIT extends UiTest {
     return state;
   }
 
-  private static FormApi formApi(String username, String password) {
-    return new FormApi(client(username, password));
+  private static FormService formApi(String username, String password) {
+    return new FormService(client(username, password));
   }
 
-  private static FormDataApi dataApi(String username, String password) {
-    return new FormDataApi(client(username, password));
+  private static FormDataService dataApi(String username, String password) {
+    return new FormDataService(client(username, password));
   }
 
   private static ApiClient client(String username, String password) {

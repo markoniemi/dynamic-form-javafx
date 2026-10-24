@@ -1,7 +1,6 @@
 package com.example.desktop.auth;
 
 import com.example.desktop.api.ApiClient;
-import com.example.desktop.api.ApiPaths;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -32,6 +31,9 @@ public class PkceLoginFlow {
    */
   public static final int CALLBACK_PORT = 8123;
 
+  /** Public. Returns a bare {@code text/plain} string, not JSON. */
+  public static final String ISSUER_URI_PATH = "/api/config/oauth2-issuer-uri";
+
   private static final String CLIENT_ID = "desktop-client";
   private static final String SCOPE = "openid profile email";
   private static final Duration CALLBACK_TIMEOUT = Duration.ofMinutes(5);
@@ -56,8 +58,7 @@ public class PkceLoginFlow {
    *     or the code exchange is rejected
    */
   public AuthSession login() {
-    String issuer =
-        new ApiClient(backendUrl, () -> null, mapper).getText(ApiPaths.CONFIG_ISSUER_URI);
+    String issuer = new ApiClient(backendUrl, () -> null, mapper).getText(ISSUER_URI_PATH);
     JsonNode metadata = discover(issuer);
     String authorizationEndpoint =
         required(metadata, "authorization_endpoint", "the OIDC metadata at " + issuer);
@@ -138,7 +139,8 @@ public class PkceLoginFlow {
   private static String required(JsonNode document, String field, String source) {
     JsonNode value = document.path(field);
     if (value.isMissingNode() || value.asText().isBlank()) {
-      // The document itself is deliberately left out. App puts this message straight into a modal
+      // The document itself is deliberately left out. DesktopApp puts this message straight into a
+      // modal
       // alert, where a 4 KB discovery document is unreadable — and a token response missing
       // access_token may still carry an id_token, which must never reach a message or a log. The
       // field names tell the user which document to look at; the names it did carry narrow it down

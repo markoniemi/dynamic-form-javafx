@@ -1,8 +1,8 @@
 package com.example.desktop;
 
 import com.example.desktop.api.ApiClient;
-import com.example.desktop.api.FormApi;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
+import com.example.desktop.api.FormService;
 import com.example.desktop.api.Reauthenticator;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.BrowserLauncher;
@@ -37,7 +37,7 @@ import org.snapfx.SnapFX;
  * against a local server or a Testcontainers stack without rebuilding. The layout is stored per
  * user under the home directory.
  */
-public class App extends Application {
+public class DesktopApp extends Application {
 
   private static final String DEFAULT_BACKEND_URL = "http://localhost:8080";
 
@@ -59,7 +59,9 @@ public class App extends Application {
     Scene scene = new Scene(status(Messages.get("login.inProgress")), 1100, 750);
     // Without this the error style class the field controls add has no visual effect, so a
     // rejected form would look exactly like an accepted one.
-    scene.getStylesheets().add(App.class.getResource("/css/application.css").toExternalForm());
+    scene
+        .getStylesheets()
+        .add(DesktopApp.class.getResource("/css/application.css").toExternalForm());
     stage.setScene(scene);
     stage.show();
 
@@ -94,8 +96,8 @@ public class App extends Application {
             () -> current.get().accessToken(),
             JsonMapperFactory.create(),
             reauthenticator(backendUrl, current, state));
-    FormApi formApi = new FormApi(client);
-    FormDataApi dataApi = new FormDataApi(client);
+    FormService formApi = new FormService(client);
+    FormDataService dataApi = new FormDataService(client);
 
     FormListPane list = new FormListPane(formApi, state);
     FormFillPane fill = new FormFillPane(dataApi, state);
@@ -136,7 +138,7 @@ public class App extends Application {
   }
 
   private static void loadForm(
-      FormApi formApi, FormFillPane fill, FormEditorPane editor, String formKey) {
+      FormService formApi, FormFillPane fill, FormEditorPane editor, String formKey) {
     if (formKey == null || formKey.isBlank()) {
       return;
     }

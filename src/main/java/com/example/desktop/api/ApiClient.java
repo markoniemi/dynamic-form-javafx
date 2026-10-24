@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.function.Supplier;
 
@@ -215,5 +217,22 @@ public class ApiClient {
     } catch (IOException e) {
       throw new IllegalStateException("Cannot serialize the request body", e);
     }
+  }
+
+  /**
+   * Encodes one path segment.
+   *
+   * <p>A form key used to be safe by construction, but {@code FormEditorPane} lets an admin type
+   * one, and an unencoded key either breaks the request or changes its meaning: a space throws
+   * {@link IllegalArgumentException} out of {@code URI.create}, a {@code #} or {@code ?} truncates
+   * the path into a fragment or a query, and a {@code /} silently addresses a different endpoint.
+   *
+   * <p>{@link URLEncoder} is written for {@code application/x-www-form-urlencoded}, where a space
+   * becomes {@code +}; in a path it has to be {@code %20}. Rewriting {@code +} afterwards is safe
+   * because a literal plus in the input has already become {@code %2B}, so the only {@code +} left
+   * is one the encoder produced for a space.
+   */
+  public static String pathSegment(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 }

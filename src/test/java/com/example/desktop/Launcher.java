@@ -28,7 +28,7 @@ public final class Launcher {
       System.out.println("Backend: " + stack.backendUrl());
       System.out.println("Auth:    " + stack.authUrl());
       System.setProperty("backend.url", stack.backendUrl());
-      App.main(args);
+      DesktopApp.main(args);
     }
   }
 }

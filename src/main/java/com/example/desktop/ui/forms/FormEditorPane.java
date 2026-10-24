@@ -1,7 +1,7 @@
 package com.example.desktop.ui.forms;
 
 import com.example.desktop.api.ApiException;
-import com.example.desktop.api.FormApi;
+import com.example.desktop.api.FormService;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
@@ -47,7 +47,7 @@ public class FormEditorPane extends BorderPane {
 
   private static final List<String> OPTION_TYPES = List.of("select", "radio", "checkbox");
 
-  private final FormApi api;
+  private final FormService api;
   private final AppState state;
   private final ErrorBanner banner = new ErrorBanner();
   private final BusyOverlay busy = new BusyOverlay();
@@ -63,7 +63,7 @@ public class FormEditorPane extends BorderPane {
   private String editingKey;
   private Consumer<FormDto> onSaved = saved -> {};
 
-  public FormEditorPane(FormApi api, AppState state) {
+  public FormEditorPane(FormService api, AppState state) {
     this.api = api;
     this.state = state;
 

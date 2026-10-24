@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.api.ApiClient;
-import com.example.desktop.api.FormApi;
+import com.example.desktop.api.FormService;
 import com.example.desktop.api.Roles;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.PkceLoginFlow;
@@ -66,8 +66,8 @@ class PkceLoginFlowIT {
                 uri -> submitLoginForm(uri, "admin", "admin"),
                 JsonMapperFactory.create())
             .login();
-    FormApi api =
-        new FormApi(
+    FormService api =
+        new FormService(
             new ApiClient(
                 StackFixture.backendUrl(), session::accessToken, JsonMapperFactory.create()));
 
