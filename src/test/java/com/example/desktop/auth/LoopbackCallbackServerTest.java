@@ -5,10 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -91,6 +96,39 @@ class LoopbackCallbackServerTest {
     HttpResponse<String> response = browser.get(5, TimeUnit.SECONDS);
     assertEquals(400, response.statusCode());
     assertFalse(response.body().isBlank(), "the browser must get the page, not a connection reset");
+  }
+
+  @Test
+  void aCallbackWhoseResponseCannotBeWrittenStillDeliversTheCode() {
+    // A response write that throws must not cost us the callback. It happens when the user closes
+    // the tab in the instant after the redirect: the code has been parsed, the write fails, and
+    // with the completion sitting after the write it never runs — so awaitCode waits out its five
+    // minutes and then reports that no callback arrived.
+    //
+    // A HEAD request is the deterministic way to make that write fail: the handler runs and parses
+    // the query, then writing a body for HEAD throws. An aborted socket is the real-world trigger
+    // but its timing window is sub-millisecond, so a test built on it passed either way here.
+    try (LoopbackCallbackServer server = new LoopbackCallbackServer(0)) {
+      sendRaw("HEAD", server.port(), "/callback?code=abc123&state=s1");
+
+      assertEquals("abc123", server.awaitCode("s1", Duration.ofSeconds(5)));
+    }
+  }
+
+  /** Sends a request target verbatim, without the validation {@code URI} would apply to it. */
+  private static void sendRaw(String method, int port, String target) {
+    try (Socket socket = new Socket(InetAddress.getLoopbackAddress(), port)) {
+      socket
+          .getOutputStream()
+          .write(
+              (method + " " + target + " HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                  .getBytes(StandardCharsets.UTF_8));
+      socket.getOutputStream().flush();
+      // Read the response so the server's write completes before the socket closes.
+      socket.getInputStream().readAllBytes();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /** Stands in for the browser following the authorization server's redirect. */

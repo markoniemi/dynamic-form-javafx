@@ -1043,15 +1043,15 @@ from it. Roughly in the order worth doing.
 
 | # | Where | Issue |
 |---|-------|-------|
-| p1 | `SubmissionsPane:132,238,265`, `FormListPane:388`, `FormEditorPane:248` | A failure whose `getMessage()` is null reaches `banner.show(null)`, which renders as empty and hides the banner — so a delete or a load that fails with, say, an NPE tells the user nothing at all. Fall back to `common.error` whenever the message is blank, as the `cause == null` branch beside it already does |
-| p2 | `FormEditorPane:210`, `SubmissionsPane:247` | Deleting a form, and deleting a submission, are irreversible and offered with no confirmation — one click on a selected row is enough. Add a confirm step |
-| p3 | `FormFillPane:198`, `FormEditorPane:191`, `SubmissionsPane:125`, `FormListPane:381` | Success and "nothing here" messages are shown in `ErrorBanner`, which carries the `.error-banner` style class, so a successful submit is styled as a failure. Either a neutral/success variant or a separate status line |
+| p1 | `SubmissionsPane:132,238,265`, `FormListPane:97`, `FormEditorPane:246` | A failure whose `getMessage()` is null reaches `banner.show(null)`, which renders as empty and hides the banner — so a delete or a load that fails with, say, an NPE tells the user nothing at all. Fall back to `common.error` whenever the message is blank, as the `cause == null` branch beside it already does |
+| p2 | `FormEditorPane:205`, `SubmissionsPane:247` | Deleting a form, and deleting a submission, are irreversible and offered with no confirmation — one click on a selected row is enough. Add a confirm step |
+| p3 | `FormFillPane:198`, `FormEditorPane:192`, `SubmissionsPane:125`, `FormListPane:90` | Success and "nothing here" messages are shown in `ErrorBanner`, which carries the `.error-banner` style class, so a successful submit is styled as a failure. Either a neutral/success variant or a separate status line |
 | p4 | `SubmissionsPane:80,82,84` | Three `AppState` listeners are registered in the constructor and never removed, so an undocked pane stays reachable from `AppState` and leaks. Use weak listeners, or give the pane a `dispose()` the dock layer calls |
-| p5 | `FormEditorPane:191` | A successful **create** reports `form.updateSuccess`. The create path needs its own key |
+| p5 | `FormEditorPane:192` | A successful **create** reports `form.updateSuccess`. The create path needs its own key |
 | p6 | `SubmissionsPane:166,204` | `select(long)` searches the filtered `shown` list while `openForEdit(long)` searches `all`, so with a filter on, a row can be opened but not selected. Pick one |
 | p7 | `FormFillPane:87,226` | `form.getFields()` is dereferenced without a null check in both `show` and `validate`; `FieldDto.options` is guarded but this is not. A definition with null fields is an NPE rather than an empty form |
-| p8 | `FormListPane:378` | `Comparator.comparing(FormListItemDto::getTitle)` throws if any title is null, which fails the whole list rather than one row |
-| p9 | `FormListPane:352` | The refresh button's tooltip is `forms.subtitle` — a page subtitle pressed into service as an action label. It needs its own key |
+| p8 | `FormListPane:87` | `Comparator.comparing(FormListItemDto::getTitle)` throws if any title is null, which fails the whole list rather than one row |
+| p9 | `FormListPane:61` | The refresh button's tooltip is `forms.subtitle` — a page subtitle pressed into service as an action label. It needs its own key |
 | p10 | `FormFillPane:259` | `showErrors` collects unplaced errors into a `LinkedHashSet`, so two distinct fields carrying an identical message collapse into one banner line |
 | p11 | `FieldControl:36` | `ERROR_TOOLTIP_KEY` is public interface API for what is purely `showError`'s bookkeeping, and it is declared between the method declarations rather than with the other constant |
 

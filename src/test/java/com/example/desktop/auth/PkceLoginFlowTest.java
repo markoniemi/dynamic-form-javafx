@@ -82,6 +82,26 @@ class PkceLoginFlowTest {
     assertTrue(e.getMessage().contains("access_token"), e.getMessage());
   }
 
+  @Test
+  void theMessageDoesNotCarryTheDocumentItCameFrom() {
+    // App.reportFatal puts this message verbatim into a modal alert, so the whole document would
+    // be on screen — and a token response that answers 200 with an id_token but no access_token
+    // would put that JWT there. The project rule is that no token appears in an exception message.
+    stubMetadata(bothEndpoints());
+    stub(
+        "/oauth2/token",
+        "application/json",
+        "{\"id_token\":\"eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiJ9.sig\",\"scope\":\"openid\"}");
+
+    Exception e = assertThrows(Exception.class, () -> flow(completeTheCallback()).login());
+
+    assertTrue(e.getMessage().contains("access_token"), e.getMessage());
+    assertFalse(e.getMessage().contains("eyJ"), "no token value in the message: " + e.getMessage());
+    assertFalse(e.getMessage().contains("{"), "no document body either: " + e.getMessage());
+    // Naming the fields it did carry is safe and is what tells the user which document is wrong.
+    assertTrue(e.getMessage().contains("id_token"), e.getMessage());
+  }
+
   private String bothEndpoints() {
     return "{\"authorization_endpoint\":\""
         + baseUrl

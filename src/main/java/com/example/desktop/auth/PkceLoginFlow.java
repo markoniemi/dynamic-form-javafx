@@ -12,6 +12,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -136,9 +138,22 @@ public class PkceLoginFlow {
   private static String required(JsonNode document, String field, String source) {
     JsonNode value = document.path(field);
     if (value.isMissingNode() || value.asText().isBlank()) {
-      throw new IllegalStateException(field + " is missing from " + source + ": " + document);
+      // The document itself is deliberately left out. App puts this message straight into a modal
+      // alert, where a 4 KB discovery document is unreadable — and a token response missing
+      // access_token may still carry an id_token, which must never reach a message or a log. The
+      // field names tell the user which document to look at; the names it did carry narrow it down
+      // without quoting any values.
+      throw new IllegalStateException(
+          field + " is missing from " + source + "; it carried " + fieldNames(document));
     }
     return value.asText();
+  }
+
+  /** The document's top-level field names, without any of their values. */
+  private static String fieldNames(JsonNode document) {
+    List<String> names = new ArrayList<>();
+    document.fieldNames().forEachRemaining(names::add);
+    return names.isEmpty() ? "no fields" : String.join(", ", names);
   }
 
   private HttpResponse<String> send(HttpRequest request) {

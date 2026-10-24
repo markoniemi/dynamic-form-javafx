@@ -103,8 +103,21 @@ public class LoopbackCallbackServer implements AutoCloseable {
   }
 
   private void handle(HttpExchange exchange) throws IOException {
-    Map<String, String> params = parseQuery(exchange.getRequestURI().getRawQuery());
+    Map<String, String> params = Map.of();
+    try {
+      params = parseQuery(exchange.getRequestURI().getRawQuery());
+      respond(exchange, params);
+    } finally {
+      // In a finally, and last. Last, because completing first unblocks awaitCode, whose caller
+      // closes this server in a try-with-resources — tearing the listener down before the bytes
+      // reach the browser, so the user saw a connection reset instead of the page. In a finally,
+      // because anything thrown on the way loses the callback altogether: awaitCode then waits out
+      // its five minutes and reports that none arrived, for a request whose code it already had.
+      callback.complete(params);
+    }
+  }
 
+  private void respond(HttpExchange exchange, Map<String, String> params) throws IOException {
     // The browser is showing this tab to the user, so say something rather than nothing.
     boolean ok = params.containsKey("code") && !params.containsKey("error");
     byte[] body =
@@ -122,11 +135,6 @@ public class LoopbackCallbackServer implements AutoCloseable {
       out.write(body);
     }
     exchange.close();
-
-    // Completed last, on purpose. Completing it first unblocks awaitCode, whose caller closes this
-    // server in a try-with-resources — tearing the listener down before these bytes reach the
-    // browser, so the user saw a connection reset instead of the page written just above.
-    callback.complete(params);
   }
 
   private static Map<String, String> parseQuery(String rawQuery) {

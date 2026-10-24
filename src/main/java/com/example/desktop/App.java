@@ -56,7 +56,7 @@ public class App extends Application {
     // user has to be told. Throwing out of start() only produces a stack trace on stderr, which in
     // a jpackage build nobody ever sees.
     stage.setTitle(Messages.get("app.title"));
-    Scene scene = new Scene(status("Signing in — complete the login in your browser…"), 1100, 750);
+    Scene scene = new Scene(status(Messages.get("login.inProgress")), 1100, 750);
     // Without this the error style class the field controls add has no visual effect, so a
     // rejected form would look exactly like an accepted one.
     scene.getStylesheets().add(App.class.getResource("/css/application.css").toExternalForm());
@@ -198,7 +198,7 @@ public class App extends Application {
 
   /** Shows why the application cannot continue, then exits. */
   private void reportFatal(Throwable cause) {
-    String message = cause == null ? "Unknown error" : cause.getMessage();
+    String message = cause == null ? Messages.get("common.error") : cause.getMessage();
     Alert alert =
         new Alert(
             Alert.AlertType.ERROR,
