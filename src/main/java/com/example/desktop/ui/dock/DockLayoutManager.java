@@ -157,8 +157,9 @@ public class DockLayoutManager {
   }
 
   /**
-   * Removes every docked pane, as a user does by clicking each close button. Exists so the
-   * blank-layout recovery path can be tested rather than only reasoned about.
+   * Removes every docked pane. A user's close button hides a pane instead, so this is not what a
+   * user does. Exists so the blank-layout recovery path can be tested rather than only reasoned
+   * about.
    */
   public void closeAllPanes() {
     for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {

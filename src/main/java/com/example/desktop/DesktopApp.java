@@ -247,7 +247,7 @@ public class DesktopApp extends Application {
         // As in stop(): a layout that cannot be written must not keep the user signed in.
         System.err.println("Could not save the window layout: " + e.getMessage());
       }
-      layout.dispose();
+      disposeQuietly(layout);
       layout = null;
     }
     SessionPanes retired = panes.getAndSet(null);
@@ -354,12 +354,21 @@ public class DesktopApp extends Application {
     if (layout == null) {
       return;
     }
-    layout.dispose();
     try {
       layout.saveLayout();
     } catch (RuntimeException e) {
       // Losing the layout is not worth a crash trace on the way out.
       System.err.println("Could not save the window layout: " + e.getMessage());
+    }
+    disposeQuietly(layout);
+  }
+
+  /** Closes the floating windows; a failure in SnapFX must not stop sign-out or shutdown. */
+  private static void disposeQuietly(DockLayoutManager manager) {
+    try {
+      manager.dispose();
+    } catch (RuntimeException e) {
+      System.err.println("Could not close the floating windows: " + e.getMessage());
     }
   }
 }
