@@ -27,7 +27,9 @@ public final class Launcher {
             .start()) {
       System.out.println("Backend: " + stack.backendUrl());
       System.out.println("Auth:    " + stack.authUrl());
-      System.setProperty("backend.url", stack.backendUrl());
+      System.setProperty(
+          "config.file",
+          StackLauncher.writeDefault(stack.backendUrl()).toAbsolutePath().toString());
       DesktopApp.main(args);
     }
   }

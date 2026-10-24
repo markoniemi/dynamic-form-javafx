@@ -221,6 +221,24 @@
           <mainClass>com.example.desktop.Launcher</mainClass>
           <classpathScope>test</classpathScope>
         </configuration>
+        <executions>
+          <!-- mvn test-compile exec:java@stack: holds the containers, writes dev-stack.properties -->
+          <execution>
+            <id>stack</id>
+            <configuration>
+              <mainClass>com.example.desktop.StackLauncher</mainClass>
+              <classpathScope>test</classpathScope>
+            </configuration>
+          </execution>
+          <!-- mvn test-compile exec:java@app -Dconfig.file=target/dev-stack.properties -->
+          <execution>
+            <id>app</id>
+            <configuration>
+              <mainClass>com.example.desktop.DesktopApp</mainClass>
+              <classpathScope>test</classpathScope>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

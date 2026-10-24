@@ -37,6 +37,7 @@ src/main/java/com/example/desktop/
 src/test/java/com/example/desktop/
   it/                                  StackFixture, TokenClient, and the *IT tests
   Launcher.java                        manual dev entry: starts the stack, then the app
+  StackLauncher.java                   holds the stack, publishes target/dev-stack.properties
 ```
 
 ## Development Workflow
@@ -60,6 +61,10 @@ Rerun after a SnapFX version bump or a cleaned `~/.m2`. Without it the build can
 ```bash
 mvn javafx:run                 # against a backend on http://localhost:8080
 mvn test-compile exec:java     # starts the real stack in Docker first (Launcher)
+
+# stack stays up across app restarts (two terminals); Ctrl+C in the first stops it
+mvn -q test-compile exec:java@stack
+mvn -q test-compile exec:java@app -Dconfig.file=target/dev-stack.properties
 ```
 
 ### Testing
