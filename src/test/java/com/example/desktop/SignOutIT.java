@@ -12,6 +12,7 @@ import com.example.desktop.api.ApiException;
 import com.example.desktop.api.Reauthenticator;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.config.DesktopConfig;
+import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.ui.UiTest;
 import com.example.desktop.ui.common.ErrorBanner;
@@ -48,6 +49,28 @@ class SignOutIT extends UiTest {
     onFx(() -> app.signOut(stage));
 
     assertInstanceOf(LoginPane.class, fxValue(() -> stage.getScene().getRoot()));
+  }
+
+  @Test
+  void aFloatedPaneDoesNotSurviveSigningOut() {
+    // A floating window is a Stage of its own, so replacing the scene root does not remove it: it
+    // would stay over the login screen, still showing the previous user's data.
+    DesktopApp app = newApp();
+    Stage stage = newStage();
+    onFx(() -> app.showMainWindow(stage, session("USER")));
+    DockLayoutManager manager = app.layoutManager();
+    onFx(
+        () ->
+            manager.headerMenus(DockLayoutManager.FORM_LIST).getFirst().getItems().stream()
+                .filter(item -> Messages.get("pane.float").equals(item.getText()))
+                .findFirst()
+                .orElseThrow()
+                .fire());
+    assertEquals(1, fxValue(manager::floatingWindowCount), "the pane did not float");
+
+    onFx(() -> app.signOut(stage));
+
+    assertEquals(0, fxValue(manager::floatingWindowCount));
   }
 
   @Test

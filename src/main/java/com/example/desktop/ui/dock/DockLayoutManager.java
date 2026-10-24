@@ -122,6 +122,14 @@ public class DockLayoutManager {
     return node == null ? null : snapFX.getLayoutEngine().getDockNodeView(node);
   }
 
+  /**
+   * Closes the floating windows, which are Stages of their own and outlive the scene root. Call it
+   * when the session ends, or a floated pane stays on screen showing that session's data.
+   */
+  public void dispose() {
+    snapFX.closeFloatingWindows(false);
+  }
+
   /** Hands the current layout to the store. Call from the application's stop hook. */
   public void saveLayout() {
     store.save(snapFX.saveLayout());
@@ -138,8 +146,11 @@ public class DockLayoutManager {
     return element instanceof DockNode node ? node : null;
   }
 
-  /** Removes one docked pane, as a user does with its close button. */
-  public void close(DockNode node) {
+  /**
+   * Removes one docked pane from the graph for good. Unlike the close button, which hides the pane
+   * so it can be restored, nothing is kept.
+   */
+  public void remove(DockNode node) {
     if (node != null) {
       snapFX.remove(node);
     }
@@ -243,7 +254,10 @@ public class DockLayoutManager {
                 return true;
               } catch (DockLayoutLoadException e) {
                 // A layout from an older build, or a hand-edited one. Starting with the default
-                // arrangement is always better than refusing to start.
+                // arrangement is always better than refusing to start. The load may have docked
+                // some nodes before it threw; clear them or the defaults would be docked beside
+                // the survivors.
+                closeAllPanes();
                 return false;
               }
             })
@@ -335,6 +349,11 @@ public class DockLayoutManager {
     return dockAtDefault(layoutId);
   }
 
+  /** How many floating windows SnapFX has open. Test seam: only tests read it. */
+  public int floatingWindowCount() {
+    return snapFX.getFloatingWindows().size();
+  }
+
   /** Layout ids of panes SnapFX is holding hidden. Test seam: only tests read it. */
   public List<String> hiddenLayoutIds() {
     return snapFX.getHiddenNodes().stream().map(DockNode::getId).toList();
@@ -361,6 +380,9 @@ public class DockLayoutManager {
     dockDefaults();
     Parent root = snapFX.buildLayout();
     decorateHeaders();
+    // Found by ShellIT: after a reset the revision listener alone left every header without its
+    // menu, so this posts one more decoration behind SnapFX's own deferred rebuild.
+    Platform.runLater(this::decorateHeaders);
     return root;
   }
 

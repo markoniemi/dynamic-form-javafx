@@ -71,7 +71,9 @@ public class DesktopApp extends Application {
 
   @Override
   public void start(Stage stage) {
-    config = DesktopConfig.load();
+    if (config == null) {
+      config = DesktopConfig.load();
+    }
     Messages.setLocale(config.locale());
     if (!config.ignored().isEmpty()) {
       // The record: written even when login never gets as far as a window. The status bar, once
@@ -245,6 +247,7 @@ public class DesktopApp extends Application {
         // As in stop(): a layout that cannot be written must not keep the user signed in.
         System.err.println("Could not save the window layout: " + e.getMessage());
       }
+      layout.dispose();
       layout = null;
     }
     SessionPanes retired = panes.getAndSet(null);
@@ -297,6 +300,11 @@ public class DesktopApp extends Application {
     thread.start();
   }
 
+  private static boolean isCurrent(AtomicReference<SessionPanes> mine) {
+    SessionPanes session = mine.get();
+    return session != null && session.isCurrent();
+  }
+
   /**
    * Runs the login flow again when the backend rejects the token, per spec 4.2 step 5. The access
    * token lives an hour, and before this a session outliving it failed every call with "not logged
@@ -318,19 +326,25 @@ public class DesktopApp extends Application {
       // A request from a session that has been signed out can still meet a 401. Logging in for it
       // would open a browser over the login screen unasked, and hold the fixed callback port
       // against the user's own Sign in.
-      if (!mine.get().isCurrent()) {
+      if (!isCurrent(mine)) {
         throw ApiException.from(401, "", JsonMapperFactory.create());
       }
       AuthSession fresh =
           new PkceLoginFlow(backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
               .login();
-      if (!mine.get().isCurrent()) {
+      if (!isCurrent(mine)) {
         throw ApiException.from(401, "", JsonMapperFactory.create());
       }
       current.set(fresh);
       // AppState belongs to the UI, so it is only ever written on the FX thread; and not at all
       // once the session it belongs to has been signed out.
-      Platform.runLater(() -> mine.get().runIfCurrent(() -> state.session().set(fresh)));
+      Platform.runLater(
+          () -> {
+            SessionPanes session = mine.get();
+            if (session != null) {
+              session.runIfCurrent(() -> state.session().set(fresh));
+            }
+          });
       return fresh.accessToken();
     };
   }
@@ -340,6 +354,7 @@ public class DesktopApp extends Application {
     if (layout == null) {
       return;
     }
+    layout.dispose();
     try {
       layout.saveLayout();
     } catch (RuntimeException e) {

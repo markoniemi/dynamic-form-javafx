@@ -570,6 +570,17 @@ view-created hook was found by reading the released jar's bytecode. Re-check all
 - Hidden nodes do not survive layout serialization. A pane closed before a restart comes back through the
   fresh-dock path, not the restore path.
 
+- **No detach for a retired SnapFX.** Read from the 0.8.0 bytecode: `SnapFX.initialize(stage)` registers a
+  `sceneProperty` change listener on the `Stage`, and `rebindShortcutScene` adds `KEY_PRESSED` and
+  `MOUSE_PRESSED` filters to the `Scene`. The app creates one `Scene` and swaps only its root, and builds a
+  fresh `SnapFX` per session, so every sign-in adds another set of filters and 0.8.0 offers no way to remove
+  them. Today this costs little: a retired instance handles each key and mouse press against a dead graph. The
+  trap is a replaced `Scene`: every retired instance would re-bind to the new one. So do not move to a
+  per-session `Scene`, which makes it worse; and do not switch to one `SnapFX` for the process either, since a
+  fresh manager per session is what makes a new session's roles re-dock the panes. Floating windows are a
+  separate matter and are closed explicitly (`closeFloatingWindows(false)` closes them without redocking). A
+  future SnapFX version that offers a detach would let this be cleaned up.
+
 **A restore-path bug, and the trade-off in its fix.** An admin opening a layout that a plain user had saved never
 got the editor pane: the saved layout has no editor node and nothing docked one. `restoreSaved` now docks the
 editor pane when the `PaneFactory` allows it and the file lacks it, the counterpart for that one pane of

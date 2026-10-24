@@ -45,7 +45,7 @@ class ShellIT extends UiTest {
             () -> {
               DockLayoutManager manager = manager(store, adminState());
               manager.build(freshStage());
-              manager.close(manager.nodeById(DockLayoutManager.SUBMISSIONS));
+              manager.remove(manager.nodeById(DockLayoutManager.SUBMISSIONS));
               return manager.currentLayout();
             });
     String defaults =
@@ -242,7 +242,7 @@ class ShellIT extends UiTest {
         onFx(() -> manager(new LayoutStore(layoutDir.resolve("reopen.json")), adminState()));
     onFx(() -> manager.build(freshStage()));
 
-    onFx(() -> manager.close(manager.nodeById(DockLayoutManager.SUBMISSIONS)));
+    onFx(() -> manager.remove(manager.nodeById(DockLayoutManager.SUBMISSIONS)));
     assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
 
     assertTrue(fxValue(() -> manager.reopen(DockLayoutManager.SUBMISSIONS)));
@@ -261,7 +261,7 @@ class ShellIT extends UiTest {
         () -> {
           DockLayoutManager first = manager(store, adminState());
           first.build(freshStage());
-          first.close(first.nodeById(DockLayoutManager.SUBMISSIONS));
+          first.remove(first.nodeById(DockLayoutManager.SUBMISSIONS));
           first.saveLayout();
         });
 
@@ -284,7 +284,7 @@ class ShellIT extends UiTest {
     LayoutStore store = new LayoutStore(layoutDir.resolve("reset.json"));
     DockLayoutManager manager = onFx(() -> manager(store, adminState()));
     onFx(() -> manager.build(freshStage()));
-    onFx(() -> manager.close(manager.nodeById(DockLayoutManager.FORM_LIST)));
+    onFx(() -> manager.remove(manager.nodeById(DockLayoutManager.FORM_LIST)));
 
     assertNotNull(onFx(manager::resetToDefaults));
     assertEquals(
@@ -295,6 +295,9 @@ class ShellIT extends UiTest {
             DockLayoutManager.FORM_EDITOR),
         fxValue(manager::layoutIdsInOrder));
     assertEquals(0.33, fxValue(manager::rootSplitFraction), 0.02);
+    onFx(() -> {});
+    onFx(() -> {});
+    assertEquals(1, fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_LIST)).size());
   }
 
   private static AppState adminState() {

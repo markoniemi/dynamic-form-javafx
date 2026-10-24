@@ -88,11 +88,17 @@ class PaneHeaderIT extends UiTest {
     assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
     assertEquals(List.of(DockLayoutManager.SUBMISSIONS), fxValue(manager::hiddenLayoutIds));
     assertTrue(fxValue(() -> manager.reopen(DockLayoutManager.SUBMISSIONS)));
+    onFx(() -> {});
+    onFx(() -> {});
     assertTrue(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
     assertNotNull(
         fxValue(() -> manager.nodeById(DockLayoutManager.SUBMISSIONS).getContent()),
         "a reopened pane with no content renders as an empty panel");
     assertEquals(List.of(), fxValue(manager::hiddenLayoutIds));
+    assertEquals(
+        1,
+        fxValue(() -> manager.headerMenus(DockLayoutManager.SUBMISSIONS)).size(),
+        "reopen relies on the revision listener to decorate the header");
   }
 
   @Test
