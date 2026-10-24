@@ -3,6 +3,7 @@ package com.example.desktop;
 import com.example.desktop.api.ApiClient;
 import com.example.desktop.api.FormApi;
 import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.Reauthenticator;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.auth.BrowserLauncher;
 import com.example.desktop.auth.PkceLoginFlow;
@@ -17,6 +18,7 @@ import com.example.desktop.ui.forms.FormFillPane;
 import com.example.desktop.ui.forms.FormListPane;
 import com.example.dynamicform.api.FormDto;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -80,13 +82,20 @@ public class App extends Application {
 
   private void showMainWindow(Stage stage, AuthSession session) {
     String backendUrl = System.getProperty("backend.url", DEFAULT_BACKEND_URL);
-    ApiClient client =
-        new ApiClient(backendUrl, session::accessToken, JsonMapperFactory.create());
-    FormApi formApi = new FormApi(client);
-    FormDataApi dataApi = new FormDataApi(client);
-
     AppState state = new AppState();
     state.session().set(session);
+
+    // The API layer reads the session from here rather than from AppState: it is written and read
+    // off the FX thread on every request, and a re-login replaces the whole AuthSession.
+    AtomicReference<AuthSession> current = new AtomicReference<>(session);
+    ApiClient client =
+        new ApiClient(
+            backendUrl,
+            () -> current.get().accessToken(),
+            JsonMapperFactory.create(),
+            reauthenticator(backendUrl, current, state));
+    FormApi formApi = new FormApi(client);
+    FormDataApi dataApi = new FormDataApi(client);
 
     FormListPane list = new FormListPane(formApi, state);
     FormFillPane fill = new FormFillPane(dataApi, state);
@@ -155,6 +164,32 @@ public class App extends Application {
     Thread thread = new Thread(load, "load-form");
     thread.setDaemon(true);
     thread.start();
+  }
+
+  /**
+   * Runs the login flow again when the backend rejects the token, per spec 4.2 step 5. The access
+   * token lives an hour, and before this a session outliving it failed every call with "not logged
+   * in, or the access token has expired" and no way back but a restart.
+   *
+   * <p>Called on whichever background thread met the 401 — never the FX thread, since it opens the
+   * browser and waits for a human. {@code ApiClient} runs one at a time, so this cannot produce two
+   * browser windows.
+   *
+   * <p>A session with different roles does not re-dock the layout: whether the editor pane exists
+   * was decided when the window was built. Signing back in as the same user, which is the case this
+   * is for, keeps them the same.
+   */
+  private static Reauthenticator reauthenticator(
+      String backendUrl, AtomicReference<AuthSession> current, AppState state) {
+    return () -> {
+      AuthSession fresh =
+          new PkceLoginFlow(backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
+              .login();
+      current.set(fresh);
+      // AppState belongs to the UI, so it is only ever written on the FX thread.
+      Platform.runLater(() -> state.session().set(fresh));
+      return fresh.accessToken();
+    };
   }
 
   /** Shows why the application cannot continue, then exits. */

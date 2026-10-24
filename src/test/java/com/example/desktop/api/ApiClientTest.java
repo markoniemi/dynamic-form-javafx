@@ -21,6 +21,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -154,6 +160,133 @@ class ApiClientTest {
     assertThrows(
         Exception.class,
         () -> client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {}));
+  }
+
+  /**
+   * Answers 401 to any request carrying {@code Bearer expired} and 200 to anything else, which is
+   * what the resource server does the moment a new token is minted.
+   */
+  private void stubRejectingTheStaleToken() {
+    server.createContext(
+        ApiPaths.FORMS,
+        exchange -> {
+          String auth = exchange.getRequestHeaders().getFirst("Authorization");
+          seenAuthHeaders.add(auth);
+          if ("Bearer expired".equals(auth)) {
+            exchange.sendResponseHeaders(401, -1);
+          } else {
+            byte[] body =
+                "[{\"formKey\":\"contact\",\"title\":\"Contact Us\"}]"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+              out.write(body);
+            }
+          }
+          exchange.close();
+        });
+  }
+
+  private List<FormListItemDto> listForms(ApiClient client) {
+    return client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {});
+  }
+
+  @Test
+  void anExpiredTokenIsRetriedOnceWithAFreshOne() {
+    // Spec 4.2 step 5: the token lives an hour, so a long session will meet this.
+    stubRejectingTheStaleToken();
+    AtomicReference<String> token = new AtomicReference<>("expired");
+    AtomicInteger logins = new AtomicInteger();
+    ApiClient client =
+        new ApiClient(
+            baseUrl,
+            token::get,
+            JsonMapperFactory.create(),
+            () -> {
+              logins.incrementAndGet();
+              token.set("fresh");
+              return "fresh";
+            });
+
+    assertEquals("contact", listForms(client).get(0).getFormKey());
+
+    assertEquals(1, logins.get(), "exactly one re-login");
+    assertEquals(List.of("Bearer expired", "Bearer fresh"), seenAuthHeaders);
+  }
+
+  @Test
+  void aReLoginThatStillGets401FailsInsteadOfLoopingForever() {
+    stub(ApiPaths.FORMS, 401, null, "");
+    AtomicInteger logins = new AtomicInteger();
+    ApiClient client =
+        new ApiClient(
+            baseUrl,
+            () -> "expired",
+            JsonMapperFactory.create(),
+            () -> {
+              logins.incrementAndGet();
+              return "no-better";
+            });
+
+    ApiException e = assertThrows(ApiException.class, () -> listForms(client));
+
+    assertEquals(401, e.getStatus());
+    assertEquals(1, logins.get(), "one retry only — a 401 after re-login is the user's answer");
+  }
+
+  @Test
+  void aFailedReLoginSurfacesTheOriginalUnauthorized() {
+    // The browser step can be cancelled or the auth server can be down. The caller must still get
+    // the readable 401 rather than whatever the login threw.
+    stub(ApiPaths.FORMS, 401, null, "");
+    ApiClient client =
+        new ApiClient(
+            baseUrl,
+            () -> "expired",
+            JsonMapperFactory.create(),
+            () -> {
+              throw new IllegalStateException("browser closed");
+            });
+
+    assertEquals(401, assertThrows(ApiException.class, () -> listForms(client)).getStatus());
+  }
+
+  @Test
+  void twoThreadsMeetingA401ReLoginOnceBetweenThem() throws Exception {
+    // Re-login opens the system browser. Two of them means two browser windows and two callback
+    // servers racing for port 8123, so the second caller has to wait and then reuse the new token.
+    stubRejectingTheStaleToken();
+    AtomicReference<String> token = new AtomicReference<>("expired");
+    AtomicInteger logins = new AtomicInteger();
+    ApiClient client =
+        new ApiClient(
+            baseUrl,
+            token::get,
+            JsonMapperFactory.create(),
+            () -> {
+              logins.incrementAndGet();
+              try {
+                Thread.sleep(300); // a human in a browser is far slower than this
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+              token.set("fresh");
+              return "fresh";
+            });
+
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    try {
+      Future<List<FormListItemDto>> first = pool.submit(() -> listForms(client));
+      Future<List<FormListItemDto>> second = pool.submit(() -> listForms(client));
+
+      assertEquals("contact", first.get(30, TimeUnit.SECONDS).get(0).getFormKey());
+      assertEquals("contact", second.get(30, TimeUnit.SECONDS).get(0).getFormKey());
+    } finally {
+      pool.shutdownNow();
+    }
+
+    assertEquals(1, logins.get(), "the second caller must reuse the token the first obtained");
   }
 
   @Test

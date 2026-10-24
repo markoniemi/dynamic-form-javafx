@@ -170,13 +170,12 @@ Consequences to keep in mind:
   image (postgres). If seeding is missing, raise it in dynamic-form rather than seeding from the client.
 - The stack's health wait is `/actuator/health` with a 2 minute timeout; first start also pulls three images
   (backend from GHCR, auth server, `postgres:16-alpine`), so CI should cache or tolerate that.
-- **Blocker: `ghcr.io/markoniemi/dynamic-form` is still a private package.** Its anonymous token request returns
-  `UNAUTHORIZED`, while `ghcr.io/markoniemi/oauth2-server` issues a token normally. dynamic-form's own CI is
-  unaffected (it authenticates to push) and so is local work there (`jib:dockerBuild` writes to the local
-  daemon), but this client's tests cannot pull it on any machine or runner that is not logged in to GHCR. Either
-  the package gets made public — tracked as action 1 in
-  [PrepareForJavaFXClient.md](../../dynamic-form/docs/PrepareForJavaFXClient.md) §6 — or every developer and the
-  client's CI needs a `docker login ghcr.io` with a `read:packages` token.
+- **Resolved: `ghcr.io/markoniemi/dynamic-form` is public.** Verified 2026-10-24 — an anonymous pull token is
+  issued and the manifest fetches, where the same request used to return `UNAUTHORIZED`. This was the blocker
+  tracked as action 1 in
+  [PrepareForJavaFXClient.md](../../dynamic-form/docs/PrepareForJavaFXClient.md) §6. No developer and no runner
+  needs a `docker login ghcr.io`, and the client's CI workflow no longer has one: that step also failed every
+  pull request from a fork, where the secret it read is empty.
 - A `Launcher` main under `src/test` starts the stack and the app for manual dev, like dynamic-form's
   `DevelopmentApplication`.
 - Everything is pinned by `dynamic-form.version`. Use a release (or a dated snapshot) in CI so the client build is
@@ -450,7 +449,7 @@ gets its own plan.
 
 | # | Phase | Output | Exit check |
 |---|-------|--------|------------|
-| 0 | Prereqs | All three artifacts are on Repsy at `1.0.0-SNAPSHOT` (verified 2026-10-17). Remaining: run `mvn initialize` once, and get the GHCR package made public — **it is still private** (see 3.2). The loopback spike is dropped (4.2) | Both jars resolve from Repsy, the image pulls without a login, `org.snapfx:snapfx-core:0.8.0` is in `~/.m2` |
+| 0 | Prereqs | All three artifacts are on Repsy at `1.0.0-SNAPSHOT` (verified 2026-10-17). Remaining: run `mvn initialize` once. The GHCR package is public as of 2026-10-24 (see 3.2) and the loopback spike is dropped (4.2) | Both jars resolve from Repsy, the image pulls without a login, `org.snapfx:snapfx-core:0.8.0` is in `~/.m2` |
 | 1 | Skeleton | Maven project, `App`, SnapFX with placeholder panes, layout save/load | App starts, layout restores |
 | 2 | Test stack | Test `oauth2-server.yaml` with `desktop-client`, JUnit helper around `DynamicFormStack`, `Launcher` | `*IT` fetches `/api/config/oauth2-issuer-uri` |
 | 3 | Auth + API | PKCE flow, `ApiClient` on api-jar DTOs, API ITs | API IT passes for admin and user |
@@ -487,7 +486,7 @@ Resolved:
 8. ~~SnapFX while it is off Maven Central: clone-and-build, vendored jar, or wait?~~ Install the GitHub release
    jar, checked against a pinned sha256, via the `install-snapfx` profile (`mvn initialize`); see section 4.4.
 
-## 8. Further development
+## 9. Further development
 
 - Add config file, dynamic-form address could in config file. What other config options? Login flow constants?
 - Rename App to DesktopClient? DesktopApp?

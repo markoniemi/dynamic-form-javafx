@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -31,10 +30,9 @@ jobs:
       - name: Install SnapFX into the local repository
         run: mvn -B initialize
 
-      # The integration tests start ghcr.io/markoniemi/dynamic-form, which is still a private
-      # package. Drop this step once the package is made public.
-      - name: Log in to GHCR
-        run: echo "${{ secrets.PACKAGE_UPDATE_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
+      # No GHCR login: ghcr.io/markoniemi/dynamic-form is public now (verified 2026-10-24 — an
+      # anonymous pull token is issued and the manifest fetches), so Testcontainers pulls it
+      # unauthenticated. The login step that used to be here also failed every pull request from a
+      # fork, where the secret it read is empty.
       - name: Build and test
         run: mvn -B clean verify

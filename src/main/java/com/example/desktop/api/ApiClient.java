@@ -31,9 +31,26 @@ public class ApiClient {
   private final ObjectMapper mapper;
   private final HttpClient http;
   private final Duration requestTimeout;
+  private final Reauthenticator reauthenticator;
+
+  /** Serializes re-login, so concurrent 401s cannot each start a browser flow. */
+  private final Object loginLock = new Object();
 
   public ApiClient(String baseUrl, Supplier<String> tokenSupplier, ObjectMapper mapper) {
-    this(baseUrl, tokenSupplier, mapper, REQUEST_TIMEOUT);
+    this(baseUrl, tokenSupplier, mapper, null, REQUEST_TIMEOUT);
+  }
+
+  /**
+   * The constructor the application uses: a rejected token is replaced by {@code reauthenticator}
+   * and the request is sent once more. Passing null keeps a 401 final, which is what the tests and
+   * any caller without a login flow want.
+   */
+  public ApiClient(
+      String baseUrl,
+      Supplier<String> tokenSupplier,
+      ObjectMapper mapper,
+      Reauthenticator reauthenticator) {
+    this(baseUrl, tokenSupplier, mapper, reauthenticator, REQUEST_TIMEOUT);
   }
 
   /**
@@ -45,9 +62,19 @@ public class ApiClient {
       Supplier<String> tokenSupplier,
       ObjectMapper mapper,
       Duration requestTimeout) {
+    this(baseUrl, tokenSupplier, mapper, null, requestTimeout);
+  }
+
+  private ApiClient(
+      String baseUrl,
+      Supplier<String> tokenSupplier,
+      ObjectMapper mapper,
+      Reauthenticator reauthenticator,
+      Duration requestTimeout) {
     this.baseUrl = baseUrl;
     this.tokenSupplier = tokenSupplier;
     this.mapper = mapper;
+    this.reauthenticator = reauthenticator;
     this.requestTimeout = requestTimeout;
     // Without these a backend that drops SYNs, or accepts the connection and never answers, parks
     // the calling thread for good.
@@ -59,23 +86,23 @@ public class ApiClient {
    * bare string rather than JSON, so parsing it as JSON would fail on the unquoted value.
    */
   public String getText(String path) {
-    return send(request(path, "text/plain").GET().build()).strip();
+    return send(() -> request(path, "text/plain").GET().build()).strip();
   }
 
   public <T> T get(String path, Class<T> type) {
-    return read(send(jsonRequest(path).GET().build()), type);
+    return read(send(() -> jsonRequest(path).GET().build()), type);
   }
 
   public <T> T get(String path, TypeReference<T> type) {
-    return read(send(jsonRequest(path).GET().build()), type);
+    return read(send(() -> jsonRequest(path).GET().build()), type);
   }
 
   public <T> T post(String path, Object body, Class<T> type) {
-    return read(send(jsonRequest(path).POST(publish(body)).build()), type);
+    return read(send(() -> jsonRequest(path).POST(publish(body)).build()), type);
   }
 
   public <T> T put(String path, Object body, Class<T> type) {
-    return read(send(jsonRequest(path).PUT(publish(body)).build()), type);
+    return read(send(() -> jsonRequest(path).PUT(publish(body)).build()), type);
   }
 
   /**
@@ -83,7 +110,7 @@ public class ApiClient {
    * submission, so neither can be assumed.
    */
   public void delete(String path) {
-    send(jsonRequest(path).DELETE().build());
+    send(() -> jsonRequest(path).DELETE().build());
   }
 
   private HttpRequest.Builder jsonRequest(String path) {
@@ -106,21 +133,63 @@ public class ApiClient {
     return HttpRequest.BodyPublishers.ofString(write(body));
   }
 
-  /** Sends the request and returns the body, or throws {@link ApiException} for any non-2xx. */
-  private String send(HttpRequest request) {
-    HttpResponse<String> response;
+  /**
+   * Sends the request and returns the body, or throws {@link ApiException} for any non-2xx.
+   *
+   * <p>A 401 is retried once against a freshly obtained token, because the access token lives an
+   * hour and nothing else in the client notices it expiring (spec 4.2 step 5). The request is built
+   * by a supplier rather than passed in so the retry can rebuild it and pick up the new bearer
+   * header — {@link HttpRequest} is immutable. Exactly one retry: a 401 that survives a successful
+   * re-login is the server's answer, not a stale token.
+   */
+  private String send(Supplier<HttpRequest> request) {
+    String tokenSent = tokenSupplier.get();
+    HttpResponse<String> response = exchange(request.get());
+    if (response.statusCode() == 401 && reauthenticator != null && reauthenticated(tokenSent)) {
+      response = exchange(request.get());
+    }
+    if (response.statusCode() / 100 != 2) {
+      throw ApiException.from(response.statusCode(), response.body(), mapper);
+    }
+    return response.body();
+  }
+
+  /**
+   * Replaces the rejected token, at most one login at a time.
+   *
+   * <p>Panes load in parallel, so several calls can meet the same expired token at once. Logging in
+   * opens the system browser and binds the fixed callback port 8123, so a second simultaneous login
+   * would show the user a second window and lose the race for the port. Whoever holds the lock logs
+   * in; everyone behind it finds the token already changed and simply retries with it.
+   *
+   * @return true if a token other than the rejected one is now available
+   */
+  private boolean reauthenticated(String rejected) {
+    synchronized (loginLock) {
+      String current = tokenSupplier.get();
+      if (current != null && !current.isBlank() && !current.equals(rejected)) {
+        return true;
+      }
+      try {
+        String fresh = reauthenticator.reauthenticate();
+        return fresh != null && !fresh.isBlank() && !fresh.equals(rejected);
+      } catch (RuntimeException e) {
+        // A cancelled browser step or an unreachable auth server. The caller gets the original 401,
+        // which says the session has expired — more use than the login's own failure.
+        return false;
+      }
+    }
+  }
+
+  private HttpResponse<String> exchange(HttpRequest request) {
     try {
-      response = http.send(request, HttpResponse.BodyHandlers.ofString());
+      return http.send(request, HttpResponse.BodyHandlers.ofString());
     } catch (IOException e) {
       throw new UncheckedIOException("Cannot reach " + request.uri(), e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while calling " + request.uri(), e);
     }
-    if (response.statusCode() / 100 != 2) {
-      throw ApiException.from(response.statusCode(), response.body(), mapper);
-    }
-    return response.body();
   }
 
   private <T> T read(String body, Class<T> type) {
