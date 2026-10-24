@@ -32,6 +32,7 @@
     <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
     <javafx-maven-plugin.version>0.0.8</javafx-maven-plugin.version>
     <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
+    <spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
     <download-maven-plugin.version>1.13.0</download-maven-plugin.version>
     <maven-install-plugin.version>3.1.4</maven-install-plugin.version>
 
@@ -182,6 +183,31 @@
         <configuration>
           <mainClass>com.example.desktop.App</mainClass>
         </configuration>
+      </plugin>
+      <!-- The project's review standard is Google Java Style with a 100-column limit. Reviewing
+           that by hand is what let 23 files drift past it, so it is mechanical now:
+           `mvn spotless:apply` fixes, and the check below fails the build.
+
+           Bound to verify rather than validate on purpose — a formatting slip must not stop a
+           developer from running tests, and CI runs verify. -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless-maven-plugin.version}</version>
+        <configuration>
+          <java>
+            <googleJavaFormat/>
+          </java>
+        </configuration>
+        <executions>
+          <execution>
+            <id>check-format</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <!-- Runs Launcher: the stack in Docker plus the app, for manual work. Declared and pinned
            because the command is documented in three places; without this Maven resolved whatever
