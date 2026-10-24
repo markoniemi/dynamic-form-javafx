@@ -488,10 +488,16 @@ Resolved:
 
 ## 9. Further development
 
-- Add config file, dynamic-form address could in config file. What other config options? Login flow constants?
 - Rename App to DesktopClient? DesktopApp?
-- Launcher lauches testcontainers and DesktopClient. For development it would be nice to have a separate launcher that launches testcontainers and remains in background. Is it possible?
 - Rename: 
   - FormApi to FormService
   - FormDataApi to FormDataService
 - Move paths in ApiPaths to corresponding services 
+- Rearrange default layout, forms on the left, submissions below them. Form view on the right, using about 2/3 of the window area.
+- Remove "float window" button from panels, replace them with three dots menu, which contains float window, duplicate panel, close panel menuitems.
+- Add status bar for status messages
+- Is there a need for menubar?
+- Is it possible to have a login dialog in desktop app? Or is it against oauth2 workflow?
+- Add config file, dynamic-form address could in config file. What other config options? Login flow constants?
+- Launcher lauches testcontainers and DesktopClient. For development it would be nice to have a separate launcher that launches testcontainers and remains in background. Is it possible?
+- 
