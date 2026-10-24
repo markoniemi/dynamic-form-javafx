@@ -1,6 +1,6 @@
 package com.example.desktop.ui.forms;
 
-import com.example.desktop.api.FormApi;
+import com.example.desktop.api.FormService;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
@@ -25,14 +25,14 @@ import javafx.scene.layout.StackPane;
  */
 public class FormListPane extends BorderPane {
 
-  private final FormApi api;
+  private final FormService api;
   private final AppState state;
   private final ObservableList<FormListItemDto> items = FXCollections.observableArrayList();
   private final ListView<FormListItemDto> listView = new ListView<>(items);
   private final ErrorBanner banner = new ErrorBanner();
   private final BusyOverlay busy = new BusyOverlay();
 
-  public FormListPane(FormApi api, AppState state) {
+  public FormListPane(FormService api, AppState state) {
     this.api = api;
     this.state = state;
 
@@ -69,6 +69,18 @@ public class FormListPane extends BorderPane {
 
   /** Reloads the list off the FX thread. */
   public void refresh() {
+    load(true);
+  }
+
+  /**
+   * Reloads the list without announcing the count in the status line: a reload driven by something
+   * else, such as a saved form, must not overwrite that action's own message.
+   */
+  public void refreshSilently() {
+    load(false);
+  }
+
+  private void load(boolean announce) {
     banner.clear();
     Task<List<FormListItemDto>> call =
         new Task<>() {
@@ -86,6 +98,9 @@ public class FormListPane extends BorderPane {
               call.getValue().stream()
                   .sorted(Comparator.comparing(FormListItemDto::getTitle))
                   .toList());
+          if (announce) {
+            state.status().set(Messages.format("status.formsLoaded", items.size()));
+          }
           if (items.isEmpty()) {
             banner.show(Messages.get("forms.noForms"));
           }

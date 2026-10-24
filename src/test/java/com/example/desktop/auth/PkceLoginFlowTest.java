@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.example.desktop.api.ApiPaths;
 import com.example.desktop.json.JsonMapperFactory;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -41,7 +40,7 @@ class PkceLoginFlowTest {
     server.start();
     baseUrl = "http://localhost:" + server.getAddress().getPort();
     // The flow asks the backend which issuer to trust; point it back at this same server.
-    stub(ApiPaths.CONFIG_ISSUER_URI, "text/plain", baseUrl);
+    stub(PkceLoginFlow.ISSUER_URI_PATH, "text/plain", baseUrl);
   }
 
   @AfterEach
@@ -84,9 +83,10 @@ class PkceLoginFlowTest {
 
   @Test
   void theMessageDoesNotCarryTheDocumentItCameFrom() {
-    // App.reportFatal puts this message verbatim into a modal alert, so the whole document would
-    // be on screen — and a token response that answers 200 with an id_token but no access_token
-    // would put that JWT there. The project rule is that no token appears in an exception message.
+    // DesktopApp.reportFatal puts this message verbatim into a modal alert, so the whole document
+    // would be on screen — and a token response that answers 200 with an id_token but no
+    // access_token would put that JWT there. The project rule is that no token appears in an
+    // exception message.
     stubMetadata(bothEndpoints());
     stub(
         "/oauth2/token",

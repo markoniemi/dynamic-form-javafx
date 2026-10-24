@@ -1,7 +1,7 @@
 package com.example.desktop.ui.forms;
 
 import com.example.desktop.api.ApiException;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
@@ -33,15 +33,15 @@ import javafx.scene.layout.VBox;
  * Renders a form definition and submits what the user fills in.
  *
  * <p>It never switches on a field's type — {@link FieldControlFactory} owns that — and it never
- * touches HTTP directly: the call goes through {@link FormDataApi} on a background thread, with the
- * result applied back on the FX thread.
+ * touches HTTP directly: the call goes through {@link FormDataService} on a background thread, with
+ * the result applied back on the FX thread.
  */
 public class FormFillPane extends BorderPane {
 
   /** Deliberately loose: the server is the authority, this only catches an obvious typo early. */
   private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
-  private final FormDataApi api;
+  private final FormDataService api;
   private final AppState state;
   private final ErrorBanner banner = new ErrorBanner();
   private final BusyOverlay busy = new BusyOverlay();
@@ -54,7 +54,7 @@ public class FormFillPane extends BorderPane {
   private Map<String, Object> editingOriginalData = Map.of();
   private Consumer<FormDataDto> onSaved = saved -> {};
 
-  public FormFillPane(FormDataApi api, AppState state) {
+  public FormFillPane(FormDataService api, AppState state) {
     this.api = api;
     this.state = state;
 
@@ -196,6 +196,7 @@ public class FormFillPane extends BorderPane {
         event -> {
           setBusy(false);
           banner.show(Messages.get(submissionId == null ? "form.success" : "form.updateSuccess"));
+          state.status().set(Messages.get("status.submitted"));
           // Published rather than pushed: the submissions pane listens for this, so neither pane
           // needs a reference to the other and the docking framework can destroy either freely.
           state.selectedSubmission().set(call.getValue());

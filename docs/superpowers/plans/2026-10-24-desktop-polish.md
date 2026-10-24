@@ -541,4 +541,4 @@ mvn -q test-compile exec:java
 - **Spec open questions 1, 3 and 4** are untouched: Cognito support, remembering a login across restarts, and whether CI pins a release or floats `-SNAPSHOT`.
 - **Multiple fill panes** (`form-fill:{formKey}`) and `floatNode` for "open in window" — spec section 4.4. The node factory still needs the prefix parse when that lands, and `attachPaneContent` in `DockLayoutManager` will need to cover the dynamic ids rather than the four fixed ones.
 - **Re-login as a different user does not re-dock the layout.** Whether the editor pane exists is settled when the window is built, so signing back in as someone with other roles leaves the panes as they were.
-- The spec has **two `## 8` headings** — *Open questions* and *Further development*. Worth renumbering when either is next edited.
+- The spec has **two `## 8` headings** — *Open questions* and *Further development*. Renumbered: *Further development* is now section 9, and the spec's own section 9 records what became of the list.

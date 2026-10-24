@@ -1,6 +1,7 @@
 package com.example.desktop;
 
 import com.example.dynamicform.testcontainers.DynamicFormStack;
+import java.io.IOException;
 
 /**
  * Runs the application against a real backend for manual work — the analogue of dynamic-form's
@@ -19,7 +20,7 @@ public final class Launcher {
 
   private Launcher() {}
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
     try (DynamicFormStack stack =
         new DynamicFormStack()
             .withAuthConfigFile("oauth2-server.yaml")
@@ -28,7 +29,7 @@ public final class Launcher {
       System.out.println("Backend: " + stack.backendUrl());
       System.out.println("Auth:    " + stack.authUrl());
       System.setProperty("backend.url", stack.backendUrl());
-      App.main(args);
+      DesktopApp.main(args);
     }
   }
 }

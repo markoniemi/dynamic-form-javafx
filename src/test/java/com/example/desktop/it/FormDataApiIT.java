@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.api.ApiClient;
 import com.example.desktop.api.ApiException;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.dynamicform.api.FormDataDto;
 import java.util.LinkedHashMap;
@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
  */
 class FormDataApiIT {
 
-  private static FormDataApi userDataApi;
-  private static FormDataApi adminDataApi;
+  private static FormDataService userDataApi;
+  private static FormDataService adminDataApi;
 
   @BeforeAll
   static void apis() {
@@ -32,9 +32,9 @@ class FormDataApiIT {
     adminDataApi = formDataApi("admin", "admin");
   }
 
-  private static FormDataApi formDataApi(String username, String password) {
+  private static FormDataService formDataApi(String username, String password) {
     String token = TokenClient.accessToken(username, password);
-    return new FormDataApi(
+    return new FormDataService(
         new ApiClient(StackFixture.backendUrl(), () -> token, JsonMapperFactory.create()));
   }
 

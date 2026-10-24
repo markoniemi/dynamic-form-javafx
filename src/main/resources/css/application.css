@@ -1,6 +1,6 @@
 /*
  * Without this the error style class FieldControl adds has no visual effect at all, and a rejected
- * form looks identical to an accepted one. App attaches this to the scene.
+ * form looks identical to an accepted one. DesktopApp attaches this to the scene.
  */
 .field-error {
   -fx-border-color: #c0392b;
@@ -21,4 +21,9 @@
 
 .busy-overlay {
   -fx-background-color: rgba(255, 255, 255, 0.75);
+}
+
+.status-bar {
+  -fx-border-color: #c8c8c8;
+  -fx-border-width: 1 0 0 0;
 }

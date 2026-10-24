@@ -1,9 +1,11 @@
 package com.example.desktop.it;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.json.JsonMapperFactory;
@@ -14,6 +16,8 @@ import com.example.desktop.ui.dock.LayoutStore;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.List;
+import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.stage.Stage;
@@ -41,7 +45,7 @@ class ShellIT extends UiTest {
             () -> {
               DockLayoutManager manager = manager(store, adminState());
               manager.build(freshStage());
-              manager.close(manager.nodeById(DockLayoutManager.SUBMISSIONS));
+              manager.remove(manager.nodeById(DockLayoutManager.SUBMISSIONS));
               return manager.currentLayout();
             });
     String defaults =
@@ -152,14 +156,67 @@ class ShellIT extends UiTest {
     assertEquals(DockLayoutManager.FORM_LIST, ((Label) content).getText());
   }
 
+  @Test
+  void theDefaultArrangementPutsTheListAndSubmissionsLeftOfTheFormView() {
+    DockLayoutManager manager =
+        onFx(() -> manager(new LayoutStore(layoutDir.resolve("default.json")), adminState()));
+    onFx(() -> manager.build(freshStage()));
+
+    assertEquals(
+        List.of(
+            DockLayoutManager.FORM_LIST,
+            DockLayoutManager.SUBMISSIONS,
+            DockLayoutManager.FORM_FILL,
+            DockLayoutManager.FORM_EDITOR),
+        fxValue(manager::layoutIdsInOrder));
+    assertEquals(Orientation.HORIZONTAL, fxValue(manager::rootOrientation));
+    assertEquals(
+        Orientation.VERTICAL,
+        fxValue(() -> manager.orientationOfParentOf(DockLayoutManager.FORM_LIST)),
+        "the list sits over the submissions in one column");
+    assertTrue(
+        fxValue(
+            () -> manager.shareParent(DockLayoutManager.SUBMISSIONS, DockLayoutManager.FORM_LIST)));
+    assertTrue(
+        fxValue(
+            () -> manager.shareParent(DockLayoutManager.FORM_EDITOR, DockLayoutManager.FORM_FILL)),
+        "the editor is tabbed with the form view, not a column of its own");
+    assertEquals(
+        0.33,
+        fxValue(manager::rootSplitFraction),
+        0.02,
+        "the form view gets about two thirds of the width");
+  }
+
+  @Test
+  void aSavedLayoutKeepsItsOwnProportions() {
+    // Every existing user has a layout saved before this change; the new defaults must not be
+    // pushed onto it.
+    LayoutStore store = new LayoutStore(layoutDir.resolve("dragged.json"));
+    String dragged =
+        onFx(
+            () -> {
+              DockLayoutManager first = manager(store, adminState());
+              first.build(freshStage());
+              assertTrue(first.setRootSplitFraction(0.80));
+              return first.currentLayout();
+            });
+    store.save(dragged);
+
+    DockLayoutManager second = onFx(() -> manager(store, adminState()));
+    onFx(() -> second.build(freshStage()));
+
+    assertEquals(0.80, fxValue(second::rootSplitFraction), 0.02);
+  }
+
   /** Each manager needs its own stage: SnapFX.initialize binds to the one it is given. */
   private static Stage freshStage() {
     return new Stage();
   }
 
   /**
-   * Mirrors how App builds a factory: the editor is declined for a non-admin, which is the single
-   * place that decision is made.
+   * Mirrors how DesktopApp builds a factory: the editor is declined for a non-admin, which is the
+   * single place that decision is made.
    */
   private static DockLayoutManager manager(LayoutStore store, AppState state) {
     return new DockLayoutManager(
@@ -172,10 +229,75 @@ class ShellIT extends UiTest {
                   DockLayoutManager.SUBMISSIONS ->
                   new Label(nodeId);
               case DockLayoutManager.FORM_EDITOR -> state.admin().get() ? new Label(nodeId) : null;
-              // App's factory ends in `default -> null`. Returning a pane for any id at all hides
-              // the case that matters: on a restore SnapFX asks by dockNodeId, not by layout id.
+              // DesktopApp's factory ends in `default -> null`. Returning a pane for any id at all
+              // hides the case that matters: on a restore SnapFX asks by dockNodeId, not by layout
+              // id.
               default -> null;
             });
+  }
+
+  @Test
+  void aClosedPaneCanBeReopened() {
+    DockLayoutManager manager =
+        onFx(() -> manager(new LayoutStore(layoutDir.resolve("reopen.json")), adminState()));
+    onFx(() -> manager.build(freshStage()));
+
+    onFx(() -> manager.remove(manager.nodeById(DockLayoutManager.SUBMISSIONS)));
+    assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+
+    assertTrue(fxValue(() -> manager.reopen(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(fxValue(() -> manager.nodeById(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(
+        fxValue(() -> manager.nodeById(DockLayoutManager.SUBMISSIONS).getContent()),
+        "a reopened pane with no content renders as an empty panel");
+  }
+
+  @Test
+  void aPaneClosedBeforeARestartCanStillBeReopened() {
+    // Whether a hidden node survives serialization is SnapFX's business, so reopen has to work
+    // from an absent id too.
+    LayoutStore store = new LayoutStore(layoutDir.resolve("closed-then-restarted.json"));
+    onFx(
+        () -> {
+          DockLayoutManager first = manager(store, adminState());
+          first.build(freshStage());
+          first.remove(first.nodeById(DockLayoutManager.SUBMISSIONS));
+          first.saveLayout();
+        });
+
+    DockLayoutManager second = onFx(() -> manager(store, adminState()));
+    onFx(() -> second.build(freshStage()));
+    assertTrue(fxValue(() -> second.reopen(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(fxValue(() -> second.nodeById(DockLayoutManager.SUBMISSIONS)));
+  }
+
+  @Test
+  void reopenDeclinesAnIdTheFactoryWillNotBuild() {
+    DockLayoutManager asUser =
+        onFx(() -> manager(new LayoutStore(layoutDir.resolve("user-reopen.json")), userState()));
+    onFx(() -> asUser.build(freshStage()));
+    assertFalse(fxValue(() -> asUser.reopen(DockLayoutManager.FORM_EDITOR)));
+  }
+
+  @Test
+  void resetGoesBackToTheDefaultArrangement() {
+    LayoutStore store = new LayoutStore(layoutDir.resolve("reset.json"));
+    DockLayoutManager manager = onFx(() -> manager(store, adminState()));
+    onFx(() -> manager.build(freshStage()));
+    onFx(() -> manager.remove(manager.nodeById(DockLayoutManager.FORM_LIST)));
+
+    assertNotNull(onFx(manager::resetToDefaults));
+    assertEquals(
+        List.of(
+            DockLayoutManager.FORM_LIST,
+            DockLayoutManager.SUBMISSIONS,
+            DockLayoutManager.FORM_FILL,
+            DockLayoutManager.FORM_EDITOR),
+        fxValue(manager::layoutIdsInOrder));
+    assertEquals(0.33, fxValue(manager::rootSplitFraction), 0.02);
+    onFx(() -> {});
+    onFx(() -> {});
+    assertEquals(1, fxValue(() -> manager.headerMenus(DockLayoutManager.FORM_LIST)).size());
   }
 
   private static AppState adminState() {

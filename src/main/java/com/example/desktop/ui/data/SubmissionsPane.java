@@ -1,7 +1,7 @@
 package com.example.desktop.ui.data;
 
-import com.example.desktop.api.FormApi;
-import com.example.desktop.api.FormDataApi;
+import com.example.desktop.api.FormDataService;
+import com.example.desktop.api.FormService;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.state.AppState;
 import com.example.desktop.ui.common.BusyOverlay;
@@ -35,8 +35,8 @@ import javafx.scene.layout.StackPane;
  */
 public class SubmissionsPane extends BorderPane {
 
-  private final FormDataApi dataApi;
-  private final FormApi formApi;
+  private final FormDataService dataApi;
+  private final FormService formApi;
   private final AppState state;
 
   private final ObservableList<FormDataDto> all = FXCollections.observableArrayList();
@@ -53,7 +53,7 @@ public class SubmissionsPane extends BorderPane {
 
   private boolean filterBySelectedForm;
 
-  public SubmissionsPane(FormDataApi dataApi, FormApi formApi, AppState state) {
+  public SubmissionsPane(FormDataService dataApi, FormService formApi, AppState state) {
     this.dataApi = dataApi;
     this.formApi = formApi;
     this.state = state;
@@ -79,7 +79,7 @@ public class SubmissionsPane extends BorderPane {
         .addListener((obs, old, selected) -> updateActions());
     state.admin().addListener((obs, old, now) -> updateActions());
     // A submission saved elsewhere (the fill pane publishes it) means this list is stale.
-    state.selectedSubmission().addListener((obs, old, saved) -> refresh());
+    state.selectedSubmission().addListener((obs, old, saved) -> load(false));
     // Keep a live filter in step when the selection moves to another form.
     state.selectedFormKey().addListener((obs, old, key) -> applyFilter());
     updateActions();
@@ -109,6 +109,22 @@ public class SubmissionsPane extends BorderPane {
 
   /** Reloads off the FX thread. */
   public void refresh() {
+    load(true);
+  }
+
+  /**
+   * Reloads without announcing the count in the status line: a reload nobody asked for must not
+   * overwrite the message of whatever caused it.
+   */
+  public void refreshSilently() {
+    load(false);
+  }
+
+  /**
+   * Loads the rows. Only a refresh somebody asked for announces its count: one driven by a listener
+   * or a callback would otherwise overwrite the message the user's own action just produced.
+   */
+  private void load(boolean announce) {
     banner.clear();
     Task<List<FormDataDto>> call =
         new Task<>() {
@@ -121,6 +137,9 @@ public class SubmissionsPane extends BorderPane {
         event -> {
           busy.setBusy(false);
           all.setAll(call.getValue());
+          if (announce) {
+            state.status().set(Messages.format("status.submissionsLoaded", all.size()));
+          }
           if (all.isEmpty()) {
             banner.show(Messages.get("submissions.noSubmissions"));
           }
@@ -257,7 +276,7 @@ public class SubmissionsPane extends BorderPane {
             return null;
           }
         };
-    call.setOnSucceeded(event -> refresh());
+    call.setOnSucceeded(event -> load(false));
     call.setOnFailed(
         event -> {
           busy.setBusy(false);

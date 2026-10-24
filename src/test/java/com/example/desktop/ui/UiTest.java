@@ -106,6 +106,16 @@ public abstract class UiTest {
     }
   }
 
+  /** A bounded wait, for asserting that something does not happen. */
+  protected static void settle(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new AssertionError("Interrupted while settling", e);
+    }
+  }
+
   private static void sleep() {
     try {
       Thread.sleep(25);

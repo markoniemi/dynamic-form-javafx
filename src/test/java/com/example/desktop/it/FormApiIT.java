@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.desktop.api.ApiClient;
 import com.example.desktop.api.ApiException;
-import com.example.desktop.api.FormApi;
+import com.example.desktop.api.FormService;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.dynamicform.api.FieldDto;
 import com.example.dynamicform.api.FormDto;
@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Test;
 /** Form CRUD against the real backend, for both an admin and a plain user. */
 class FormApiIT {
 
-  private static FormApi adminApi;
-  private static FormApi userApi;
+  private static FormService adminApi;
+  private static FormService userApi;
 
   @BeforeAll
   static void apis() {
@@ -28,9 +28,9 @@ class FormApiIT {
     userApi = formApi("user", "user");
   }
 
-  private static FormApi formApi(String username, String password) {
+  private static FormService formApi(String username, String password) {
     String token = TokenClient.accessToken(username, password);
-    return new FormApi(
+    return new FormService(
         new ApiClient(StackFixture.backendUrl(), () -> token, JsonMapperFactory.create()));
   }
 

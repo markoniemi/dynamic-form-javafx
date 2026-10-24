@@ -1,15 +1,23 @@
 package com.example.desktop.ui.dock;
 
 import com.example.desktop.i18n.Messages;
+import java.util.ArrayList;
 import java.util.List;
+import javafx.application.Platform;
+import javafx.geometry.Orientation;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.control.MenuButton;
 import javafx.stage.Stage;
 import org.snapfx.SnapFX;
+import org.snapfx.close.DockCloseBehavior;
+import org.snapfx.model.DockContainer;
 import org.snapfx.model.DockElement;
 import org.snapfx.model.DockNode;
 import org.snapfx.model.DockPosition;
+import org.snapfx.model.DockSplitPane;
 import org.snapfx.persistence.DockLayoutLoadException;
+import org.snapfx.view.DockNodeView;
 
 /**
  * Builds and persists the dockable window layout.
@@ -30,6 +38,12 @@ public class DockLayoutManager {
   public static final String FORM_EDITOR = "form-editor";
   public static final String SUBMISSIONS = "submissions";
 
+  /** Share of the width the left column gets by default; the form view takes the rest. */
+  private static final double DEFAULT_LIST_FRACTION = 0.33;
+
+  private static final List<String> PANE_IDS =
+      List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR);
+
   private final SnapFX snapFX;
   private final LayoutStore store;
   private final PaneFactory panes;
@@ -41,16 +55,79 @@ public class DockLayoutManager {
   }
 
   /**
+   * A manager with a SnapFX of its own, so callers outside this package need no SnapFX import. One
+   * per session: SnapFX binds to the stage it is given and {@link #build} registers a listener, so
+   * neither can be reused.
+   */
+  public static DockLayoutManager create(LayoutStore store, PaneFactory panes) {
+    return new DockLayoutManager(new SnapFX(), store, panes);
+  }
+
+  /**
    * Initialises SnapFX, restores the saved layout if there is a usable one, and returns the root.
    */
   public Parent build(Stage stage) {
     snapFX.initialize(stage);
     snapFX.setNodeFactory(this::createNode);
+    snapFX.setDefaultCloseBehavior(DockCloseBehavior.HIDE);
 
     if (!restoreSaved()) {
       dockDefaults();
     }
-    return snapFX.buildLayout();
+    Parent root = snapFX.buildLayout();
+    decorateHeaders();
+    // SnapFX rebuilds every node view on a revision bump, via its own runLater registered before
+    // this one. runLater is FIFO, so deferring ours puts it after the rebuild; a synchronous call
+    // would decorate the views about to be thrown away. The marker check keeps this cheap.
+    snapFX
+        .getDockGraph()
+        .revisionProperty()
+        .addListener((obs, old, rev) -> Platform.runLater(this::decorateHeaders));
+    return root;
+  }
+
+  /**
+   * Gives every docked pane's header the three-dots menu. Safe to call repeatedly; call it after
+   * any structural change, since SnapFX may rebuild a pane's header view.
+   */
+  public void decorateHeaders() {
+    for (String id : PANE_IDS) {
+      DockNode node = nodeById(id);
+      if (node != null) {
+        PaneHeaderMenu.decorate(snapFX, node);
+      }
+    }
+  }
+
+  /** The menu buttons in this pane's header; empty when the id is not docked. */
+  public List<MenuButton> headerMenus(String layoutId) {
+    DockNodeView view = viewOf(layoutId);
+    if (view == null) {
+      return List.of();
+    }
+    return view.getHeader().getChildren().stream()
+        .filter(child -> child.getStyleClass().contains(PaneHeaderMenu.MENU_STYLE_CLASS))
+        .map(MenuButton.class::cast)
+        .toList();
+  }
+
+  /** Whether SnapFX's own float button shows in this pane's header; false when not docked. */
+  public boolean floatButtonVisible(String layoutId) {
+    DockNodeView view = viewOf(layoutId);
+    return view != null && view.isFloatButtonVisible();
+  }
+
+  private DockNodeView viewOf(String layoutId) {
+    DockNode node = nodeById(layoutId);
+    return node == null ? null : snapFX.getLayoutEngine().getDockNodeView(node);
+  }
+
+  /**
+   * Closes the floating windows, which are Stages of their own and outlive the scene root. Call it
+   * when the session ends, or a floated pane stays on screen showing that session's data.
+   */
+  public void dispose() {
+    snapFX.closeFloatingWindows(false);
   }
 
   /** Hands the current layout to the store. Call from the application's stop hook. */
@@ -69,16 +146,20 @@ public class DockLayoutManager {
     return element instanceof DockNode node ? node : null;
   }
 
-  /** Removes one docked pane, as a user does with its close button. */
-  public void close(DockNode node) {
+  /**
+   * Removes one docked pane from the graph for good. Unlike the close button, which hides the pane
+   * so it can be restored, nothing is kept.
+   */
+  public void remove(DockNode node) {
     if (node != null) {
       snapFX.remove(node);
     }
   }
 
   /**
-   * Removes every docked pane, as a user does by clicking each close button. Exists so the
-   * blank-layout recovery path can be tested rather than only reasoned about.
+   * Removes every docked pane. A user's close button hides a pane instead, so this is not what a
+   * user does. Exists so the blank-layout recovery path can be tested rather than only reasoned
+   * about.
    */
   public void closeAllPanes() {
     for (String id : List.of(FORM_LIST, FORM_FILL, SUBMISSIONS, FORM_EDITOR)) {
@@ -89,7 +170,70 @@ public class DockLayoutManager {
     }
   }
 
+  /** The layout ids in the graph, depth first: left to right, then top to bottom. */
+  public List<String> layoutIdsInOrder() {
+    List<String> ids = new ArrayList<>();
+    collectLayoutIds(snapFX.getDockGraph().getRoot(), ids);
+    return ids;
+  }
+
+  private static void collectLayoutIds(DockElement element, List<String> ids) {
+    if (element instanceof DockNode node) {
+      ids.add(node.getId());
+    } else if (element instanceof DockContainer container) {
+      for (DockElement child : container.getChildren()) {
+        collectLayoutIds(child, ids);
+      }
+    }
+  }
+
+  /** The root split's first divider position, or -1 when the root is not a split. */
+  public double rootSplitFraction() {
+    if (snapFX.getDockGraph().getRoot() instanceof DockSplitPane split
+        && !split.getDividerPositions().isEmpty()) {
+      return split.getDividerPositions().get(0).get();
+    }
+    return -1;
+  }
+
   /**
+   * The orientation of the split holding this layout id, or null when its parent is not a split or
+   * the id is absent.
+   */
+  public Orientation orientationOfParentOf(String layoutId) {
+    return snapFX.getDockGraph().findElementByLayoutId(layoutId) instanceof DockElement element
+            && element.getParent() instanceof DockSplitPane split
+        ? split.getOrientation()
+        : null;
+  }
+
+  /** Whether both layout ids exist and have the same parent container. */
+  public boolean shareParent(String first, String second) {
+    DockElement a = snapFX.getDockGraph().findElementByLayoutId(first);
+    DockElement b = snapFX.getDockGraph().findElementByLayoutId(second);
+    return a != null && b != null && a.getParent() != null && a.getParent() == b.getParent();
+  }
+
+  /** The root split's orientation, or null when the root is not a split. */
+  public Orientation rootOrientation() {
+    return snapFX.getDockGraph().getRoot() instanceof DockSplitPane split
+        ? split.getOrientation()
+        : null;
+  }
+
+  /**
+   * Moves the root split's first divider, as a user dragging it would.
+   *
+   * @return true if the fraction was applied
+   */
+  public boolean setRootSplitFraction(double fraction) {
+    return snapFX.setRootSplitRatios(fraction, 1 - fraction);
+  }
+
+  /**
+   * The counterpart of {@link #stripPanesTheFactoryDeclines()}: that removes what this session may
+   * not see, {@link #dockEditorIfNewlyAllowed()} adds what this session may see and the file lacks.
+   *
    * @return true if a saved layout was restored; false if the caller should dock the defaults
    */
   private boolean restoreSaved() {
@@ -107,10 +251,14 @@ public class DockLayoutManager {
                 }
                 stripPanesTheFactoryDeclines();
                 attachPaneContent();
+                dockEditorIfNewlyAllowed();
                 return true;
               } catch (DockLayoutLoadException e) {
                 // A layout from an older build, or a hand-edited one. Starting with the default
-                // arrangement is always better than refusing to start.
+                // arrangement is always better than refusing to start. The load may have docked
+                // some nodes before it threw; clear them or the defaults would be docked beside
+                // the survivors.
+                closeAllPanes();
                 return false;
               }
             })
@@ -118,30 +266,125 @@ public class DockLayoutManager {
   }
 
   /**
-   * The arrangement the spec asks for: list on the left, form in the centre, submissions below it.
+   * Forms over submissions on the left, the form view on the right, the editor tabbed with it.
    *
-   * <p>Each pane is positioned relative to the one it belongs beside, not all relative to the list.
-   * Docking twice to the list's RIGHT splits the list's own cell instead of adding a column, which
-   * puts the editor in a quarter-width strip next to the list and the submissions under that pair.
+   * <p>Each pane is positioned relative to the one it belongs beside. The fill pane goes to the
+   * list's RIGHT to make the second column; the submissions go to the list's BOTTOM, which splits
+   * only the left column and leaves the fill pane the whole right side. Docking them to the fill
+   * pane instead would put them under the form view. The root split is then set to one third for
+   * the left column. Only this default arrangement sets ratios: a restored layout keeps whatever
+   * the user dragged.
    */
   private void dockDefaults() {
-    DockNode list = snapFX.dock(panes.create(FORM_LIST), title(FORM_LIST));
-    list.setLayoutId(FORM_LIST);
-
-    DockNode fill =
-        snapFX.dock(panes.create(FORM_FILL), title(FORM_FILL), list, DockPosition.RIGHT);
-    fill.setLayoutId(FORM_FILL);
-
-    snapFX
-        .dock(panes.create(SUBMISSIONS), title(SUBMISSIONS), fill, DockPosition.BOTTOM)
-        .setLayoutId(SUBMISSIONS);
-
-    Node editor = panes.create(FORM_EDITOR);
-    if (editor != null) {
-      // Tabbed with the form rather than given its own column: the two are alternative views of
-      // the same selected form, and never useful side by side.
-      snapFX.dock(editor, title(FORM_EDITOR), fill, DockPosition.CENTER).setLayoutId(FORM_EDITOR);
+    for (String id : PANE_IDS) {
+      dockAtDefault(id);
     }
+    // Observed with SnapFX 0.8.0: this returns true before buildLayout(), and true after it too.
+    if (!setRootSplitFraction(DEFAULT_LIST_FRACTION)) {
+      System.err.println("Could not apply the default split ratios; panes keep equal widths");
+    }
+  }
+
+  /**
+   * Docks one pane where the default arrangement puts it. The only place those positions are
+   * written, so the first launch, a reset and a reopen cannot disagree.
+   *
+   * <p>The anchor is the pane this one belongs beside: the fill pane goes to the list's RIGHT to
+   * make the second column; the submissions go to the list's BOTTOM, which splits only the left
+   * column and leaves the fill pane the whole right side; the editor is tabbed (CENTER) with the
+   * fill pane, because the two are alternative views of the same selected form. When the anchor is
+   * not docked, as after the user closed it, the pane is docked on its own.
+   *
+   * @return false when the factory declines the id
+   */
+  private boolean dockAtDefault(String id) {
+    Node content = panes.create(id);
+    if (content == null) {
+      return false;
+    }
+    DockNode anchor =
+        switch (id) {
+          case FORM_FILL, SUBMISSIONS -> nodeById(FORM_LIST);
+          case FORM_EDITOR -> nodeById(FORM_FILL);
+          default -> null;
+        };
+    DockPosition position =
+        switch (id) {
+          case FORM_FILL -> DockPosition.RIGHT;
+          case SUBMISSIONS -> DockPosition.BOTTOM;
+          case FORM_EDITOR -> DockPosition.CENTER;
+          default -> null;
+        };
+    DockNode node =
+        anchor == null
+            ? snapFX.dock(content, titleOf(id))
+            : snapFX.dock(content, titleOf(id), anchor, position);
+    node.setLayoutId(id);
+    return true;
+  }
+
+  /**
+   * Brings a closed pane back.
+   *
+   * <p>Two states are possible. A pane closed with SnapFX's own button is hidden and still in the
+   * graph, so it is restored where it was. A pane absent from the graph entirely, as after a
+   * restart that did not carry the hidden node over, is docked fresh at its default position.
+   * Headers are not decorated here: both paths bump the graph revision, and the listener {@link
+   * #build} registered re-decorates after it.
+   *
+   * @return false when the factory declines the id, which is how a non-admin cannot open the editor
+   */
+  public boolean reopen(String layoutId) {
+    if (panes.create(layoutId) == null) {
+      return false;
+    }
+    if (nodeById(layoutId) != null && layoutIdsInOrder().contains(layoutId)) {
+      return true; // already docked
+    }
+    for (DockNode hidden : List.copyOf(snapFX.getHiddenNodes())) {
+      if (layoutId.equals(hidden.getId())) {
+        snapFX.restore(hidden);
+        return true;
+      }
+    }
+    return dockAtDefault(layoutId);
+  }
+
+  /** How many floating windows SnapFX has open. Test seam: only tests read it. */
+  public int floatingWindowCount() {
+    return snapFX.getFloatingWindows().size();
+  }
+
+  /** Layout ids of panes SnapFX is holding hidden. Test seam: only tests read it. */
+  public List<String> hiddenLayoutIds() {
+    return snapFX.getHiddenNodes().stream().map(DockNode::getId).toList();
+  }
+
+  /** The ids the factory will build that are not currently docked. */
+  public List<String> reopenableIds() {
+    List<String> docked = layoutIdsInOrder();
+    return PANE_IDS.stream()
+        .filter(id -> !docked.contains(id) && panes.create(id) != null)
+        .toList();
+  }
+
+  /**
+   * Discards the current arrangement, hidden panes included, and docks the defaults.
+   *
+   * @return the new root, for the caller to put in the scene
+   */
+  public Parent resetToDefaults() {
+    for (DockNode hidden : List.copyOf(snapFX.getHiddenNodes())) {
+      snapFX.remove(hidden);
+    }
+    closeAllPanes();
+    dockDefaults();
+    Parent root = snapFX.buildLayout();
+    decorateHeaders();
+    // Found by ShellIT: after a reset the revision listener alone left every header without its
+    // menu, so this posts one more decoration behind SnapFX's own deferred rebuild.
+    Platform.runLater(this::decorateHeaders);
+    return root;
   }
 
   /**
@@ -160,6 +403,19 @@ public class DockLayoutManager {
       if (element instanceof DockNode node) {
         snapFX.remove(node);
       }
+    }
+  }
+
+  /**
+   * The converse of {@link #stripPanesTheFactoryDeclines()}: a layout saved by a plain user has no
+   * editor, and an admin who signs in next would otherwise never see it. The editor is the only
+   * pane whose existence depends on the session, so it is the only one docked here; any other pane
+   * missing from a saved layout was closed on purpose and stays reachable through {@link #reopen}.
+   * The cost is that an admin who closed the editor gets it back after a restart.
+   */
+  private void dockEditorIfNewlyAllowed() {
+    if (nodeById(FORM_EDITOR) == null && panes.create(FORM_EDITOR) != null) {
+      dockAtDefault(FORM_EDITOR);
     }
   }
 
@@ -199,11 +455,11 @@ public class DockLayoutManager {
    */
   private DockNode createNode(String id) {
     Node content = panes.create(id);
-    return content == null ? null : new DockNode(id, content, title(id));
+    return content == null ? null : new DockNode(id, content, titleOf(id));
   }
 
   /** The dock node's tab label, from the shared bundle so it matches the web client's wording. */
-  private static String title(String id) {
+  public static String titleOf(String id) {
     return switch (id) {
       case FORM_LIST -> Messages.get("navigation.forms");
       case FORM_FILL -> Messages.get("form.submit");

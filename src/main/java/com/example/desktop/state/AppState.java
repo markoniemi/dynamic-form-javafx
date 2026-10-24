@@ -20,6 +20,7 @@ public class AppState {
   private final ObjectProperty<AuthSession> session = new SimpleObjectProperty<>();
   private final StringProperty selectedFormKey = new SimpleStringProperty();
   private final ObjectProperty<FormDataDto> selectedSubmission = new SimpleObjectProperty<>();
+  private final StringProperty status = new SimpleStringProperty("");
   private final ObservableBooleanValue admin;
 
   public AppState() {
@@ -39,6 +40,11 @@ public class AppState {
 
   public ObjectProperty<FormDataDto> selectedSubmission() {
     return selectedSubmission;
+  }
+
+  /** The status line text. Written on the FX thread only; not an error channel. */
+  public StringProperty status() {
+    return status;
   }
 
   /** Whether to offer admin-only actions. A display decision; the backend is the authority. */

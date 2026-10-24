@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.example.desktop.auth.PkceLoginFlow;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.dynamicform.api.FormDto;
 import com.example.dynamicform.api.FormListItemDto;
@@ -81,14 +82,14 @@ class ApiClientTest {
   @Test
   void getDeserializesAndSendsTheBearerToken() {
     stub(
-        ApiPaths.FORMS,
+        FormService.FORMS,
         200,
         "application/json",
         "[{\"formKey\":\"contact\",\"title\":\"Contact Us\"}]");
     ApiClient client = new ApiClient(baseUrl, () -> "tok-123", JsonMapperFactory.create());
 
     List<FormListItemDto> forms =
-        client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {});
+        client.get(FormService.FORMS, new TypeReference<List<FormListItemDto>>() {});
 
     assertEquals("contact", forms.get(0).getFormKey());
     assertEquals(List.of("Bearer tok-123"), seenAuthHeaders);
@@ -96,19 +97,19 @@ class ApiClientTest {
 
   @Test
   void getTextReturnsTheRawBodyForThePlainTextIssuerEndpoint() {
-    stub(ApiPaths.CONFIG_ISSUER_URI, 200, "text/plain", "http://localhost:9000");
+    stub(PkceLoginFlow.ISSUER_URI_PATH, 200, "text/plain", "http://localhost:9000");
     ApiClient client = new ApiClient(baseUrl, () -> null, JsonMapperFactory.create());
 
-    assertEquals("http://localhost:9000", client.getText(ApiPaths.CONFIG_ISSUER_URI));
+    assertEquals("http://localhost:9000", client.getText(PkceLoginFlow.ISSUER_URI_PATH));
     assertTrue(seenAuthHeaders.isEmpty(), "a null token must not produce an Authorization header");
   }
 
   @Test
   void postAcceptsTheCreatedStatus() {
-    stub(ApiPaths.FORMS, 201, "application/json", "{\"formKey\":\"it-form\",\"title\":\"IT\"}");
+    stub(FormService.FORMS, 201, "application/json", "{\"formKey\":\"it-form\",\"title\":\"IT\"}");
     ApiClient client = new ApiClient(baseUrl, () -> "t", JsonMapperFactory.create());
 
-    assertEquals("it-form", client.post(ApiPaths.FORMS, Map.of(), FormDto.class).getFormKey());
+    assertEquals("it-form", client.post(FormService.FORMS, Map.of(), FormDto.class).getFormKey());
   }
 
   @Test
@@ -117,14 +118,14 @@ class ApiClientTest {
     stub("/api/form-data/submission/7", 200, null, "");
     ApiClient client = new ApiClient(baseUrl, () -> "t", JsonMapperFactory.create());
 
-    assertDoesNotThrow(() -> client.delete(ApiPaths.form("gone")));
-    assertDoesNotThrow(() -> client.delete(ApiPaths.submission(7L)));
+    assertDoesNotThrow(() -> client.delete(FormService.path("gone")));
+    assertDoesNotThrow(() -> client.delete(FormDataService.submissionPath(7L)));
   }
 
   @Test
   void validationFailureBecomesAnApiExceptionWithFieldErrors() {
     stub(
-        ApiPaths.FORMS,
+        FormService.FORMS,
         400,
         "application/problem+json",
         """
@@ -134,7 +135,7 @@ class ApiClientTest {
 
     ApiException e =
         assertThrows(
-            ApiException.class, () -> client.post(ApiPaths.FORMS, Map.of(), FormDto.class));
+            ApiException.class, () -> client.post(FormService.FORMS, Map.of(), FormDto.class));
 
     assertEquals("title", e.getErrors().get(0).getField());
   }
@@ -158,7 +159,7 @@ class ApiClientTest {
 
     assertThrows(
         Exception.class,
-        () -> client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {}));
+        () -> client.get(FormService.FORMS, new TypeReference<List<FormListItemDto>>() {}));
   }
 
   /**
@@ -167,7 +168,7 @@ class ApiClientTest {
    */
   private void stubRejectingTheStaleToken() {
     server.createContext(
-        ApiPaths.FORMS,
+        FormService.FORMS,
         exchange -> {
           String auth = exchange.getRequestHeaders().getFirst("Authorization");
           seenAuthHeaders.add(auth);
@@ -188,7 +189,7 @@ class ApiClientTest {
   }
 
   private List<FormListItemDto> listForms(ApiClient client) {
-    return client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {});
+    return client.get(FormService.FORMS, new TypeReference<List<FormListItemDto>>() {});
   }
 
   @Test
@@ -216,7 +217,7 @@ class ApiClientTest {
 
   @Test
   void aReLoginThatStillGets401FailsInsteadOfLoopingForever() {
-    stub(ApiPaths.FORMS, 401, null, "");
+    stub(FormService.FORMS, 401, null, "");
     AtomicInteger logins = new AtomicInteger();
     ApiClient client =
         new ApiClient(
@@ -238,7 +239,7 @@ class ApiClientTest {
   void aFailedReLoginSurfacesTheOriginalUnauthorized() {
     // The browser step can be cancelled or the auth server can be down. The caller must still get
     // the readable 401 rather than whatever the login threw.
-    stub(ApiPaths.FORMS, 401, null, "");
+    stub(FormService.FORMS, 401, null, "");
     ApiClient client =
         new ApiClient(
             baseUrl,
@@ -291,13 +292,13 @@ class ApiClientTest {
   @Test
   void expiredTokenGivesAnUnauthorizedApiExceptionNotAJsonParseError() {
     // The resource server answers 401 with an EMPTY body and a WWW-Authenticate header.
-    stub(ApiPaths.FORMS, 401, null, "");
+    stub(FormService.FORMS, 401, null, "");
     ApiClient client = new ApiClient(baseUrl, () -> "expired", JsonMapperFactory.create());
 
     ApiException e =
         assertThrows(
             ApiException.class,
-            () -> client.get(ApiPaths.FORMS, new TypeReference<List<FormListItemDto>>() {}));
+            () -> client.get(FormService.FORMS, new TypeReference<List<FormListItemDto>>() {}));
 
     assertEquals(401, e.getStatus());
     assertNotNull(e.getDetail());

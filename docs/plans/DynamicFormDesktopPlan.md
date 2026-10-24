@@ -248,9 +248,9 @@ list every URI.
 
 ```
 com.example.desktop
-├── App.java                    Application entry, wires services, builds SnapFX layout
+├── DesktopApp.java             Application entry, wires services, builds SnapFX layout
 ├── auth/                       PkceLoginFlow, LoopbackCallbackServer, AuthSession (token, roles)
-├── api/                        ApiClient (HttpClient + bearer), FormApi, FormDataApi (take and return `dynamic-form-api` DTOs), ApiException(+`ValidationErrorDto` list)
+├── api/                        ApiClient (HttpClient + bearer), FormService, FormDataService (each owns its endpoint paths; take and return `dynamic-form-api` DTOs), ApiException(+`ValidationErrorDto` list)
 ├── ui/
 │   ├── dock/                   DockLayoutManager (SnapFX setup, save/load layout, node factory)
 │   ├── forms/FormListPane      list + refresh, selection event
@@ -283,9 +283,12 @@ docs this plan first referenced:
   default layout. A layout that names an id this build no longer knows degrades through
   `DockNodeFactory.createNode(String)` returning null.
 - `setNodeFactory(DockNodeFactory)`, `floatNode(DockNode)`, `remove(DockNode)`, `hide`, `restore`.
-- Default layout: list on the left, fill pane center, submissions below; editor hidden unless ADMIN.
-- Multiple fill panes are allowed: id scheme `form-fill:{formKey}`. The node factory parses the prefix on load.
-  Double-click in the list opens a form in a new docked tab; "open in window" uses `floatNode`.
+- Default layout: forms top-left, submissions below them, form view on the right with the editor tabbed with it
+  (ADMIN only); root divider at 0.33. See 9.1.
+- Multiple fill panes are planned, not built: id scheme `form-fill:{formKey}`, with the node factory parsing the
+  prefix on load. Double-click in the list would open a form in a new docked tab. Deferred, see 9.4. Floating a
+  pane to its own window uses `floatNode`, reached from *Float window* in the pane's three-dots header menu; the
+  built-in float button is hidden (9.1).
 - Role gating: do not dock the editor node for non-admins; also strip it from a loaded layout with `remove`.
 - The jar ships **no POM**, so its dependencies are not transitive. Its `module-info` requires
   `com.google.gson`, `javafx.controls`, `javafx.graphics`, `javafx.base` and `java.desktop` — the client must
@@ -356,7 +359,7 @@ non-Spring declarative client, whereas the Feign used elsewhere in these repos i
 (`@FeignClient`, `@GetMapping`, `@EnableFeignClients`, a Spring context). Without Spring that would mean plain
 OpenFeign (`io.github.openfeign:feign-core`) with `@RequestLine` and a manual `Feign.builder()` — different
 annotations and different wiring, so the familiarity would largely not transfer, and Spring Cloud OpenFeign is
-feature-complete besides. The switch is contained: `ApiClient` disappears and `FormApi`/`FormDataApi` become
+feature-complete besides. The switch is contained: `ApiClient` disappears and `FormService`/`FormDataService` become
 annotated interfaces.
 
 **The OpenAPI route is currently closed.** dynamic-form has no springdoc, no `openapi` and no swagger
@@ -430,11 +433,13 @@ See section 6 for how this would land, including the naming collision to avoid.
 - **Annotation-free operation interfaces in the api jar** (proposed, not yet decided; section 4.6). Value is a
   written-down contract plus a pre-declared client interface — not compile-checked server agreement, since
   nothing server-side would implement them.
-  **Do not call them `FormService` and `FormDataService`:** both names already exist in
+  **In the shared api jar, do not call them `FormService` and `FormDataService`:** both names already exist in
   `com.example.backend.service` as Spring `@Service` classes, and those are **entity**-based
   (`FormService.get(String) → Form`, `FormDataService.getAll() → List<FormData>`), so they could not implement a
-  DTO-based interface of the same name anyway. Use `FormOperations` / `FormDataOperations`, or
-  `FormApi` / `FormDataApi`.
+  DTO-based interface of the same name anyway. Use `FormOperations` / `FormDataOperations` there.
+  The warning binds the api jar and nothing else. The client's own `com.example.desktop.api.FormService` and
+  `FormDataService` collide with nothing, because the backend's classes are never on the client's classpath, and
+  the client uses those names as of the shell-and-config work (section 9).
 
 ## 7. Delivery phases
 
@@ -488,10 +493,111 @@ Resolved:
 
 ## 9. Further development
 
-- Add config file, dynamic-form address could in config file. What other config options? Login flow constants?
-- Rename App to DesktopClient? DesktopApp?
-- Launcher lauches testcontainers and DesktopClient. For development it would be nice to have a separate launcher that launches testcontainers and remains in background. Is it possible?
-- Rename: 
-  - FormApi to FormService
-  - FormDataApi to FormDataService
-- Move paths in ApiPaths to corresponding services 
+The list that stood here was worked through on 2026-10-24 by
+[docs/superpowers/plans/2026-10-24-desktop-shell-and-config.md](superpowers/plans/2026-10-24-desktop-shell-and-config.md).
+What follows records what was decided, where it lives, and why, so that a later reader can tell a decision from
+an option that was merely considered.
+
+### 9.1 Decided and built
+
+**Renames.** `FormApi` is now `FormService`, `FormDataApi` is `FormDataService`, and `App` is `DesktopApp`. The
+service names were settled by the observation recorded in section 6: the backend's same-named classes live in a
+package the client never sees, so only a name placed in the shared api jar would have collided. `ApiPaths` is
+deleted. Each service owns the path constants for its own endpoints, the percent-encoder for a path segment moved
+onto `ApiClient.pathSegment(String)` because it serves both services, and the issuer path moved onto
+`PkceLoginFlow.ISSUER_URI_PATH` because only the login flow uses it. A path now lives next to the code that
+calls it instead of in a third place that both had to be kept in step with.
+
+**Default layout.** Forms on the left with submissions below them, and the form view on the right taking about
+two thirds of the window width. This applies to a fresh layout only; a layout saved earlier keeps its own
+proportions.
+
+**Pane header menu.** The float button is replaced by a three-dots menu that ships *Float window* and
+*Close panel*. *Duplicate panel* was in the original wish and is deferred, see 9.4.
+
+**Status bar.** A status line names the signed-in user and reports load counts, submits and configuration
+problems.
+
+**Config file.** `~/.dynamic-form-desktop/config.properties` holds exactly three keys: `backend.url`, `locale`
+and `layout.file`. System properties win over the file, so `-Dbackend.url` still overrides it. The OAuth2
+callback port is deliberately not configurable: the redirect URI must be byte-identical to the registration that
+dynamic-form publishes (section 4.2), so `PkceLoginFlow.CALLBACK_PORT` stays a constant. A bad or unknown entry
+is reported and ignored; a configuration problem never stops the window from appearing.
+
+**Login screen.** The client opens on a pre-login screen (`ui/common/LoginPane`) with a Sign in button, and the
+system browser opens only when it is clicked. The flow itself is unchanged from section 4.2.
+
+**Menubar.** A minimal one: File (sign out, exit), View (reopen each pane, reset layout), Help (about). The
+deciding argument was that a closed pane had no way back short of deleting `layout.json`. Signing out and in as
+another user rebuilds the whole main window, so the new session's roles decide which panes are docked.
+
+**Dev launcher.** `StackLauncher` holds the containers in its own JVM and publishes its backend URL, which is
+a random port, to `target/dev-stack.properties`. The app reads that file through `-Dconfig.file`, so it is the
+ordinary config mechanism pointed at a different file, with no launcher-specific code in the app. The combined
+`Launcher` remains for the one-command case. Ryuk, the Testcontainers reaper, removes the containers when the
+launcher's JVM exits, and the launcher deletes the published file on shutdown so that no dead URL survives it.
+
+### 9.2 Questions the original list asked, answered
+
+**Can the desktop app have its own login dialog with username and password fields? No.** Such a dialog has to
+send the user's credentials to the token endpoint itself, which is the OAuth2 password grant. OAuth 2.1 removed
+that grant and Spring Authorization Server does not implement it, so this auth server has nothing for a dialog
+to call. What was built instead is the pre-login screen above, which keeps the browser flow. An embedded
+`WebView` showing the authorization page would still be possible, but RFC 8252 argues against embedded
+user-agents, since the application then handles the user's password and loses the browser's SSO session and
+password manager, and it would add the `javafx.web` dependency. Section 4.2 already rejected it for the same
+reasons.
+
+**Is there a need for a menubar? Yes.** Closing a pane left no way to bring it back, and the menubar is where
+that belongs. It is kept minimal on purpose, see 9.1.
+
+**Is a background dev launcher possible? Yes**, as described under *Dev launcher* above: a separate JVM, a
+published config file, and Ryuk for cleanup.
+
+### 9.3 Findings worth keeping
+
+**SnapFX 0.8.0.** The jar ships no sources, and the 0.6.x documentation online is wrong on these points, so
+each claim below says how it was established. The ratio rule and the serialization behaviour were found by
+experiment: an implementer probed `setRootSplitRatios` both before and after `buildLayout()`, and a layout that
+was saved and reloaded came back as docked = form-list, form-fill, form-editor with hidden = none. The missing
+view-created hook was found by reading the released jar's bytecode. Re-check all three on a version bump.
+
+- `setRootSplitRatios` needs as many values as the root has children, and works both before and after
+  `buildLayout()`.
+- `DockLayoutEngine` clears its view cache and rebuilds every `DockNodeView` on any structural change, and there
+  is no hook for a view being created. Pane-header decoration therefore has to be re-applied from a
+  `DockGraph.revisionProperty()` listener, posted through `Platform.runLater`, or a drag silently drops it.
+- Hidden nodes do not survive layout serialization. A pane closed before a restart comes back through the
+  fresh-dock path, not the restore path.
+
+- **No detach for a retired SnapFX.** Read from the 0.8.0 bytecode: `SnapFX.initialize(stage)` registers a
+  `sceneProperty` change listener on the `Stage`, and `rebindShortcutScene` adds `KEY_PRESSED` and
+  `MOUSE_PRESSED` filters to the `Scene`. The app creates one `Scene` and swaps only its root, and builds a
+  fresh `SnapFX` per session, so every sign-in adds another set of filters and 0.8.0 offers no way to remove
+  them. Today this costs little: a retired instance handles each key and mouse press against a dead graph. The
+  trap is a replaced `Scene`: every retired instance would re-bind to the new one. So do not move to a
+  per-session `Scene`, which makes it worse; and do not switch to one `SnapFX` for the process either, since a
+  fresh manager per session is what makes a new session's roles re-dock the panes. Floating windows are a
+  separate matter and are closed explicitly (`closeFloatingWindows(false)` closes them without redocking). A
+  future SnapFX version that offers a detach would let this be cleaned up.
+
+**A restore-path bug, and the trade-off in its fix.** An admin opening a layout that a plain user had saved never
+got the editor pane: the saved layout has no editor node and nothing docked one. `restoreSaved` now docks the
+editor pane when the `PaneFactory` allows it and the file lacks it, the counterpart for that one pane of
+`stripPanesTheFactoryDeclines`. The accepted
+side effect is that an admin who closed the editor gets it back after a restart. Because hidden nodes do not
+survive serialization, "the admin closed it" and "this was never an admin's layout" are the same state on disk,
+and telling them apart would mean persisting a set of panes the user closed. That was judged not worth building:
+one click to close it again beats a pane that is permanently unreachable.
+
+### 9.4 Still deferred
+
+- **Duplicate panel and multiple fill panes** (`form-fill:{formKey}`, section 4.4). `PaneHeaderMenu` has the menu
+  to hang it on; what is missing is dynamic ids in the code that creates, attaches, strips and reopens panes,
+  which all iterate a fixed list of four ids today. It gets its own plan, and the menu gains *Duplicate panel*
+  then.
+- **`jpackage`.** It needs open question 2 (target OS) answered, and one runner per platform.
+- **Open questions 1, 3 and 4** in section 8: Cognito support, a login remembered across restarts, and whether CI
+  pins a release or floats `-SNAPSHOT`.
+- **The 401 reauthenticator still reuses the panes.** A re-login after an expired token keeps the window it had,
+  which is right for the same user and wrong if the roles changed.
