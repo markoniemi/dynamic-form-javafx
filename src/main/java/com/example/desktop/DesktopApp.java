@@ -1,6 +1,7 @@
 package com.example.desktop;
 
 import com.example.desktop.api.ApiClient;
+import com.example.desktop.api.ApiException;
 import com.example.desktop.api.FormDataService;
 import com.example.desktop.api.FormService;
 import com.example.desktop.api.Reauthenticator;
@@ -101,7 +102,6 @@ public class DesktopApp extends Application {
     pane[0] =
         new LoginPane(
             () -> {
-              pane[0].setBusy(true);
               Task<AuthSession> login =
                   new Task<>() {
                     @Override
@@ -239,7 +239,12 @@ public class DesktopApp extends Application {
    */
   void signOut(Stage stage) {
     if (layout != null) {
-      layout.saveLayout();
+      try {
+        layout.saveLayout();
+      } catch (RuntimeException e) {
+        // As in stop(): a layout that cannot be written must not keep the user signed in.
+        System.err.println("Could not save the window layout: " + e.getMessage());
+      }
       layout = null;
     }
     SessionPanes retired = panes.getAndSet(null);
@@ -304,15 +309,24 @@ public class DesktopApp extends Application {
    * <p>Signing back in as the same user, which is the case this is for, keeps the roles the same; a
    * session with other roles comes from signing out and in, which rebuilds the window.
    */
-  private static Reauthenticator reauthenticator(
+  static Reauthenticator reauthenticator(
       String backendUrl,
       AtomicReference<AuthSession> current,
       AppState state,
       AtomicReference<SessionPanes> mine) {
     return () -> {
+      // A request from a session that has been signed out can still meet a 401. Logging in for it
+      // would open a browser over the login screen unasked, and hold the fixed callback port
+      // against the user's own Sign in.
+      if (!mine.get().isCurrent()) {
+        throw ApiException.from(401, "", JsonMapperFactory.create());
+      }
       AuthSession fresh =
           new PkceLoginFlow(backendUrl, BrowserLauncher.systemBrowser(), JsonMapperFactory.create())
               .login();
+      if (!mine.get().isCurrent()) {
+        throw ApiException.from(401, "", JsonMapperFactory.create());
+      }
       current.set(fresh);
       // AppState belongs to the UI, so it is only ever written on the FX thread; and not at all
       // once the session it belongs to has been signed out.

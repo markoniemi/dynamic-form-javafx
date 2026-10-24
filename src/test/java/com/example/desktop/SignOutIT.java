@@ -3,9 +3,13 @@ package com.example.desktop;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.example.desktop.api.ApiException;
+import com.example.desktop.api.Reauthenticator;
 import com.example.desktop.auth.AuthSession;
 import com.example.desktop.config.DesktopConfig;
 import com.example.desktop.json.JsonMapperFactory;
@@ -14,10 +18,12 @@ import com.example.desktop.ui.common.ErrorBanner;
 import com.example.desktop.ui.common.LoginPane;
 import com.example.desktop.ui.dock.DockLayoutManager;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.scene.Scene;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
@@ -81,13 +87,47 @@ class SignOutIT extends UiTest {
 
     assertFalse(fxValue(retired::isCurrent));
     assertTrue(fxValue(current::isCurrent));
-    onFx(
-        () -> {
-          retired.runIfCurrent(() -> current.state().status().set("from the old session"));
-          // Sanity: the guard is the only thing standing in the way.
-          current.runIfCurrent(() -> current.state().status().set("from the new session"));
-        });
+    onFx(() -> retired.runIfCurrent(() -> current.state().status().set("from the old session")));
+    // Asserted between the two writes: the second must not be able to hide a leak of the first.
+    assertNotEquals("from the old session", fxValue(() -> current.state().status().get()));
+    onFx(() -> current.runIfCurrent(() -> current.state().status().set("from the new session")));
     assertEquals("from the new session", fxValue(() -> current.state().status().get()));
+  }
+
+  @Test
+  void signingOutStillWorksWhenTheLayoutCannotBeSaved() throws Exception {
+    // A regular file where the layout's directory should be makes LayoutStore.save throw.
+    Path blocker = Files.createFile(layoutDir.resolve("blocker"));
+    Properties overrides = new Properties();
+    overrides.setProperty("layout.file", blocker.resolve("layout.json").toString());
+    DesktopApp app =
+        new DesktopApp(DesktopConfig.load(layoutDir.resolve("none.properties"), overrides));
+    Stage stage = newStage();
+    onFx(() -> app.showMainWindow(stage, session("USER")));
+    SessionPanes panes = app.panes();
+
+    onFx(() -> app.signOut(stage));
+
+    assertInstanceOf(LoginPane.class, fxValue(() -> stage.getScene().getRoot()));
+    assertFalse(fxValue(panes::isCurrent));
+  }
+
+  @Test
+  void aRetiredSessionDoesNotStartALoginFlowOnA401() throws Exception {
+    DesktopApp app = newApp();
+    Stage stage = newStage();
+    onFx(() -> app.showMainWindow(stage, session("USER")));
+    SessionPanes retired = app.panes();
+    onFx(() -> app.signOut(stage));
+
+    // Had the guard not fired, this would open a browser and block on the callback port.
+    Reauthenticator reauthenticator =
+        DesktopApp.reauthenticator(
+            "http://localhost:1",
+            new AtomicReference<>(session("USER")),
+            retired.state(),
+            new AtomicReference<>(retired));
+    assertThrows(ApiException.class, reauthenticator::reauthenticate);
   }
 
   @Test

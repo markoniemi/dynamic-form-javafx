@@ -81,7 +81,14 @@ final class SessionPanes {
     retired.set(true);
   }
 
-  /** The guard every {@code setOnSucceeded} and {@code setOnFailed} body is wrapped in. */
+  /**
+   * The guard every {@code setOnSucceeded} and {@code setOnFailed} body is wrapped in.
+   *
+   * <p>What it protects against: every session builds its own {@code AppState} and panes, so a
+   * retired handler writing into them harms nothing today. The guard saves needless work on panes
+   * nobody sees, and keeps a retired session's result away from any live UI should something ever
+   * be shared between sessions. It does not make the panes' own internal handlers safe.
+   */
   void runIfCurrent(Runnable block) {
     if (isCurrent()) {
       block.run();

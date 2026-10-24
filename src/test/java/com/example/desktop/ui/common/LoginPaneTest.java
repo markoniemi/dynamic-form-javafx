@@ -39,4 +39,17 @@ class LoginPaneTest extends UiTest {
     assertFalse(fxValue(() -> pane.signInButton().isDisabled()));
     assertEquals("Connection refused", fxValue(pane::messageText));
   }
+
+  @Test
+  void aSecondClickWhileSigningInDoesNotStartASecondFlow() {
+    AtomicInteger starts = new AtomicInteger();
+    LoginPane pane = onFx(() -> new LoginPane(starts::incrementAndGet));
+    onFx(
+        () -> {
+          pane.signInButton().fire();
+          pane.signInButton().fire();
+        });
+    assertEquals(1, starts.get());
+    assertTrue(fxValue(() -> pane.signInButton().isDisabled()));
+  }
 }

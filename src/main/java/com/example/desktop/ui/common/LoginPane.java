@@ -21,7 +21,13 @@ public class LoginPane extends BorderPane {
     Label prompt = new Label(Messages.get("login.prompt"));
     prompt.getStyleClass().add("login-prompt");
     signIn.setDefaultButton(true);
-    signIn.setOnAction(event -> onSignIn.run());
+    // The pane owns the one-flow-at-a-time rule: the port the flow listens on is fixed, so a second
+    // click must not start a second flow. Whoever supplies onSignIn cannot forget this.
+    signIn.setOnAction(
+        event -> {
+          setBusy(true);
+          onSignIn.run();
+        });
     message.setWrapText(true);
     message.setMaxWidth(420);
     VBox column = new VBox(12, prompt, signIn, message, overlay);
