@@ -11,6 +11,7 @@ import com.example.desktop.config.DesktopConfig;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
+import com.example.desktop.ui.common.MainMenuBar;
 import com.example.desktop.ui.common.StatusBar;
 import com.example.desktop.ui.data.SubmissionsPane;
 import com.example.desktop.ui.dock.DockLayoutManager;
@@ -19,6 +20,7 @@ import com.example.desktop.ui.forms.FormEditorPane;
 import com.example.desktop.ui.forms.FormFillPane;
 import com.example.desktop.ui.forms.FormListPane;
 import com.example.dynamicform.api.FormDto;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -159,11 +161,48 @@ public class DesktopApp extends Application {
     submissions.refreshSilently();
   }
 
-  /** The window content: the dock in the centre, the status bar along the bottom. */
+  /** The window content: the menubar on top, the dock in the centre, the status bar below. */
   private Parent windowRoot(Stage stage, AppState state) {
     BorderPane root = new BorderPane(layout.build(stage));
+    root.setTop(
+        new MainMenuBar(
+            new MainMenuBar.Actions() {
+              @Override
+              public void reopen(String layoutId) {
+                layout.reopen(layoutId);
+              }
+
+              @Override
+              public void resetLayout() {
+                root.setCenter(layout.resetToDefaults());
+              }
+
+              @Override
+              public void signOut() {
+                DesktopApp.this.signOut(stage);
+              }
+
+              @Override
+              public void exit() {
+                Platform.exit();
+              }
+
+              @Override
+              public List<String> reopenable() {
+                return layout.reopenableIds();
+              }
+            }));
     root.setBottom(new StatusBar(state));
     return root;
+  }
+
+  /**
+   * Saves the layout and puts the window back to the pre-login status. Task 7 replaces that status
+   * with a real login screen.
+   */
+  void signOut(Stage stage) {
+    layout.saveLayout();
+    stage.getScene().setRoot(status(Messages.get("login.inProgress")));
   }
 
   private static void loadForm(

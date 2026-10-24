@@ -1,6 +1,7 @@
 package com.example.desktop.it;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -233,6 +234,67 @@ class ShellIT extends UiTest {
               // the case that matters: on a restore SnapFX asks by dockNodeId, not by layout id.
               default -> null;
             });
+  }
+
+  @Test
+  void aClosedPaneCanBeReopened() {
+    DockLayoutManager manager =
+        onFx(() -> manager(new LayoutStore(layoutDir.resolve("reopen.json")), adminState()));
+    onFx(() -> manager.build(freshStage()));
+
+    onFx(() -> manager.close(manager.nodeById(DockLayoutManager.SUBMISSIONS)));
+    assertFalse(fxValue(() -> manager.layoutIdsInOrder().contains(DockLayoutManager.SUBMISSIONS)));
+
+    assertTrue(fxValue(() -> manager.reopen(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(fxValue(() -> manager.nodeById(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(
+        fxValue(() -> manager.nodeById(DockLayoutManager.SUBMISSIONS).getContent()),
+        "a reopened pane with no content renders as an empty panel");
+  }
+
+  @Test
+  void aPaneClosedBeforeARestartCanStillBeReopened() {
+    // Whether a hidden node survives serialization is SnapFX's business, so reopen has to work
+    // from an absent id too.
+    LayoutStore store = new LayoutStore(layoutDir.resolve("closed-then-restarted.json"));
+    onFx(
+        () -> {
+          DockLayoutManager first = manager(store, adminState());
+          first.build(freshStage());
+          first.close(first.nodeById(DockLayoutManager.SUBMISSIONS));
+          first.saveLayout();
+        });
+
+    DockLayoutManager second = onFx(() -> manager(store, adminState()));
+    onFx(() -> second.build(freshStage()));
+    assertTrue(fxValue(() -> second.reopen(DockLayoutManager.SUBMISSIONS)));
+    assertNotNull(fxValue(() -> second.nodeById(DockLayoutManager.SUBMISSIONS)));
+  }
+
+  @Test
+  void reopenDeclinesAnIdTheFactoryWillNotBuild() {
+    DockLayoutManager asUser =
+        onFx(() -> manager(new LayoutStore(layoutDir.resolve("user-reopen.json")), userState()));
+    onFx(() -> asUser.build(freshStage()));
+    assertFalse(fxValue(() -> asUser.reopen(DockLayoutManager.FORM_EDITOR)));
+  }
+
+  @Test
+  void resetGoesBackToTheDefaultArrangement() {
+    LayoutStore store = new LayoutStore(layoutDir.resolve("reset.json"));
+    DockLayoutManager manager = onFx(() -> manager(store, adminState()));
+    onFx(() -> manager.build(freshStage()));
+    onFx(() -> manager.close(manager.nodeById(DockLayoutManager.FORM_LIST)));
+
+    assertNotNull(onFx(manager::resetToDefaults));
+    assertEquals(
+        List.of(
+            DockLayoutManager.FORM_LIST,
+            DockLayoutManager.SUBMISSIONS,
+            DockLayoutManager.FORM_FILL,
+            DockLayoutManager.FORM_EDITOR),
+        fxValue(manager::layoutIdsInOrder));
+    assertEquals(0.33, fxValue(manager::rootSplitFraction), 0.02);
   }
 
   private static AppState adminState() {
