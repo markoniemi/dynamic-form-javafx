@@ -196,6 +196,7 @@ public class FormFillPane extends BorderPane {
         event -> {
           setBusy(false);
           banner.show(Messages.get(submissionId == null ? "form.success" : "form.updateSuccess"));
+          state.status().set(Messages.get("status.submitted"));
           // Published rather than pushed: the submissions pane listens for this, so neither pane
           // needs a reference to the other and the docking framework can destroy either freely.
           state.selectedSubmission().set(call.getValue());

@@ -121,6 +121,7 @@ public class SubmissionsPane extends BorderPane {
         event -> {
           busy.setBusy(false);
           all.setAll(call.getValue());
+          state.status().set(Messages.format("status.submissionsLoaded", all.size()));
           if (all.isEmpty()) {
             banner.show(Messages.get("submissions.noSubmissions"));
           }

@@ -11,6 +11,7 @@ import com.example.desktop.config.DesktopConfig;
 import com.example.desktop.i18n.Messages;
 import com.example.desktop.json.JsonMapperFactory;
 import com.example.desktop.state.AppState;
+import com.example.desktop.ui.common.StatusBar;
 import com.example.desktop.ui.data.SubmissionsPane;
 import com.example.desktop.ui.dock.DockLayoutManager;
 import com.example.desktop.ui.dock.LayoutStore;
@@ -23,9 +24,11 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.snapfx.SnapFX;
@@ -51,10 +54,6 @@ public class DesktopApp extends Application {
   public void start(Stage stage) {
     config = DesktopConfig.load();
     Messages.setLocale(config.locale());
-    if (!config.ignored().isEmpty()) {
-      // Goes to the status bar once there is one.
-      System.err.println(Messages.format("config.ignored", String.join(", ", config.ignored())));
-    }
     String backendUrl = config.backendUrl();
 
     // The window goes up first, showing a status line. Logging in means three HTTP calls and then
@@ -138,9 +137,19 @@ public class DesktopApp extends Application {
         session.isAdmin()
             ? Messages.format("app.titleAdmin", Messages.get("app.title"))
             : Messages.get("app.title"));
-    stage.getScene().setRoot(layout.build(stage));
+    stage.getScene().setRoot(windowRoot(stage, state));
+    if (!config.ignored().isEmpty()) {
+      state.status().set(Messages.format("config.ignored", String.join(", ", config.ignored())));
+    }
     list.refresh();
     submissions.refresh();
+  }
+
+  /** The window content: the dock in the centre, the status bar along the bottom. */
+  private Parent windowRoot(Stage stage, AppState state) {
+    BorderPane root = new BorderPane(layout.build(stage));
+    root.setBottom(new StatusBar(state));
+    return root;
   }
 
   private static void loadForm(

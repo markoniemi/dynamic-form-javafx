@@ -17,6 +17,14 @@ import org.junit.jupiter.api.Test;
 class AppStateTest {
 
   @Test
+  void statusStartsEmptyAndCarriesWhatIsPutInIt() {
+    AppState state = new AppState();
+    assertEquals("", state.status().get());
+    state.status().set("Loaded 3 forms");
+    assertEquals("Loaded 3 forms", state.status().get());
+  }
+
+  @Test
   void adminFollowsTheSessionItIsGiven() {
     AppState state = new AppState();
 

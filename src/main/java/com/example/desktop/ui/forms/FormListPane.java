@@ -86,6 +86,7 @@ public class FormListPane extends BorderPane {
               call.getValue().stream()
                   .sorted(Comparator.comparing(FormListItemDto::getTitle))
                   .toList());
+          state.status().set(Messages.format("status.formsLoaded", items.size()));
           if (items.isEmpty()) {
             banner.show(Messages.get("forms.noForms"));
           }
