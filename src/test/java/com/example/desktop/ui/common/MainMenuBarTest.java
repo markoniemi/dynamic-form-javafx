@@ -16,39 +16,46 @@ import org.junit.jupiter.api.Test;
 class MainMenuBarTest extends UiTest {
 
   @Test
-  void theViewMenuListsOnlyWhatIsReopenable() {
-    RecordingActions actions = new RecordingActions(List.of(DockLayoutManager.SUBMISSIONS));
+  void theViewMenuIsRebuiltWhenItOpens() {
+    RecordingActions actions = new RecordingActions(List.of());
     MenuBar bar = onFx(() -> new MainMenuBar(actions));
     Menu view = fxValue(() -> bar.getMenus().get(1));
-    onFx(() -> view.show()); // the list is built on show, so a pane closed meanwhile appears
+    assertEquals(List.of(Messages.get("menu.resetLayout")), fxValue(() -> texts(view)));
+
+    // A pane closed since the bar was built: only a rebuild on show can list it.
+    actions.reopenable = List.of(DockLayoutManager.SUBMISSIONS);
+    onFx(view::show);
+
     assertEquals(
         List.of(Messages.get("navigation.submissions"), Messages.get("menu.resetLayout")),
-        fxValue(
-            () ->
-                view.getItems().stream()
-                    .filter(item -> !(item instanceof SeparatorMenuItem))
-                    .map(MenuItem::getText)
-                    .toList()));
+        fxValue(() -> texts(view)));
   }
 
   @Test
   void signOutAndExitReachTheActions() {
     RecordingActions actions = new RecordingActions(List.of());
     MenuBar bar = onFx(() -> new MainMenuBar(actions));
-    onFx(() -> bar.getMenus().getFirst().getItems().getFirst().fire());
-    assertTrue(actions.signedOut());
+    List<MenuItem> fileItems = fxValue(() -> bar.getMenus().getFirst().getItems());
+    onFx(() -> fileItems.get(0).fire());
+    onFx(() -> fileItems.get(1).fire());
+    assertTrue(actions.signedOut);
+    assertTrue(actions.exited);
+  }
+
+  private static List<String> texts(Menu menu) {
+    return menu.getItems().stream()
+        .filter(item -> !(item instanceof SeparatorMenuItem))
+        .map(MenuItem::getText)
+        .toList();
   }
 
   private static final class RecordingActions implements MainMenuBar.Actions {
-    private final List<String> reopenable;
-    private boolean signedOut;
+    List<String> reopenable;
+    boolean signedOut;
+    boolean exited;
 
     RecordingActions(List<String> reopenable) {
       this.reopenable = reopenable;
-    }
-
-    boolean signedOut() {
-      return signedOut;
     }
 
     @Override
@@ -63,7 +70,9 @@ class MainMenuBarTest extends UiTest {
     }
 
     @Override
-    public void exit() {}
+    public void exit() {
+      exited = true;
+    }
 
     @Override
     public List<String> reopenable() {

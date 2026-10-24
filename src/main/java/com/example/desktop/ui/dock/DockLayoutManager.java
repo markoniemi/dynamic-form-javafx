@@ -322,7 +322,7 @@ public class DockLayoutManager {
     return dockAtDefault(layoutId);
   }
 
-  /** Layout ids of panes SnapFX is holding hidden: closed by the user, still in the graph. */
+  /** Layout ids of panes SnapFX is holding hidden. Test seam: only tests read it. */
   public List<String> hiddenLayoutIds() {
     return snapFX.getHiddenNodes().stream().map(DockNode::getId).toList();
   }

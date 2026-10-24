@@ -15,7 +15,10 @@ import javafx.scene.control.SeparatorMenuItem;
  */
 public class MainMenuBar extends MenuBar {
 
-  /** What the menus do. Kept apart from the bar so the bar knows nothing about docking. */
+  /**
+   * What the menus do. Kept apart from the bar so the bar never touches the dock itself; it only
+   * borrows the pane titles.
+   */
   public interface Actions {
     void reopen(String layoutId);
 
