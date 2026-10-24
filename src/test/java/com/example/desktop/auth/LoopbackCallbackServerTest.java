@@ -58,7 +58,13 @@ class LoopbackCallbackServerTest {
 
       Exception e = assertThrows(Exception.class, () -> new LoopbackCallbackServer(taken));
 
+      // Naming the port is not enough to assert: the generic IOException fallback names it too
+      // ("Cannot start the login callback server on port N"), so an assertion on the number alone
+      // passes whichever branch ran and cannot fail for the reason this test is named for.
       assertTrue(e.getMessage().contains(String.valueOf(taken)), e.getMessage());
+      assertTrue(e.getMessage().contains("already in use"), e.getMessage());
+      assertFalse(
+          e.getMessage().contains("BindException"), "the raw exception name helps nobody: " + e.getMessage());
     }
   }
 
