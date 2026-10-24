@@ -140,8 +140,7 @@ public class PkceLoginFlow {
     JsonNode value = document.path(field);
     if (value.isMissingNode() || value.asText().isBlank()) {
       // The document itself is deliberately left out. DesktopApp puts this message straight into a
-      // modal
-      // alert, where a 4 KB discovery document is unreadable — and a token response missing
+      // modal alert, where a 4 KB discovery document is unreadable — and a token response missing
       // access_token may still carry an id_token, which must never reach a message or a log. The
       // field names tell the user which document to look at; the names it did carry narrow it down
       // without quoting any values.

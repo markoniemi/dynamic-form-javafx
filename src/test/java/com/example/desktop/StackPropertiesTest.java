@@ -20,8 +20,9 @@ class StackPropertiesTest {
     Path file =
         StackLauncher.writeProperties(
             dir.resolve("dev-stack.properties"), "http://localhost:32769");
-    assertEquals("http://localhost:32769", DesktopConfig.load(file, new Properties()).backendUrl());
-    assertTrue(DesktopConfig.load(file, new Properties()).ignored().isEmpty());
+    DesktopConfig config = DesktopConfig.load(file, new Properties());
+    assertEquals("http://localhost:32769", config.backendUrl());
+    assertTrue(config.ignored().isEmpty());
   }
 
   @Test

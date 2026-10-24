@@ -84,9 +84,9 @@ class PkceLoginFlowTest {
   @Test
   void theMessageDoesNotCarryTheDocumentItCameFrom() {
     // DesktopApp.reportFatal puts this message verbatim into a modal alert, so the whole document
-    // would
-    // be on screen — and a token response that answers 200 with an id_token but no access_token
-    // would put that JWT there. The project rule is that no token appears in an exception message.
+    // would be on screen — and a token response that answers 200 with an id_token but no
+    // access_token would put that JWT there. The project rule is that no token appears in an
+    // exception message.
     stubMetadata(bothEndpoints());
     stub(
         "/oauth2/token",

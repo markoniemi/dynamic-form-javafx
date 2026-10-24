@@ -230,8 +230,8 @@ class ShellIT extends UiTest {
                   new Label(nodeId);
               case DockLayoutManager.FORM_EDITOR -> state.admin().get() ? new Label(nodeId) : null;
               // DesktopApp's factory ends in `default -> null`. Returning a pane for any id at all
-              // hides
-              // the case that matters: on a restore SnapFX asks by dockNodeId, not by layout id.
+              // hides the case that matters: on a restore SnapFX asks by dockNodeId, not by layout
+              // id.
               default -> null;
             });
   }

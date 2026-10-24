@@ -2,7 +2,6 @@ package com.example.desktop;
 
 import com.example.dynamicform.testcontainers.DynamicFormStack;
 import java.io.IOException;
-import java.nio.file.Path;
 
 /**
  * Runs the application against a real backend for manual work — the analogue of dynamic-form's
@@ -30,12 +29,7 @@ public final class Launcher {
       System.out.println("Backend: " + stack.backendUrl());
       System.out.println("Auth:    " + stack.authUrl());
       System.setProperty("backend.url", stack.backendUrl());
-      Path file = StackLauncher.writeProperties(StackLauncher.DEFAULT_FILE, stack.backendUrl());
-      try {
-        DesktopApp.main(args);
-      } finally {
-        StackLauncher.deleteQuietly(file);
-      }
+      DesktopApp.main(args);
     }
   }
 }
