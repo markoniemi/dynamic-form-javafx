@@ -93,6 +93,17 @@ Read `docs/DynamicFormDesktopPlan.md` section 2 for the full table. The parts th
 - An admin gets **403** updating another user's submission, though it may read and delete it.
 - Seeded forms: `contact`, `feedback`, `survey`. Only `feedback` has a `date` and a `checkbox` field.
 
+### Auth server
+
+Comes from oauth2-server, indirectly: it is a dependency of `dynamic-form-testcontainers`, not declared here.
+
+- Fixed host port **9000**, issuer `http://localhost:9000` — the `iss` claim must match what the backend expects.
+- `desktop-client` registration: public client, PKCE required, redirect URI **`http://localhost:8123/callback`**
+  (fixed port, as dynamic-form publishes it).
+- The JWT claim is `roles`, and the auth server mints values **already prefixed** (`ROLE_ADMIN`, `ROLE_USER`).
+  The backend's converter passes a prefixed value through unchanged, so either form is possible; `AuthSession`
+  strips the prefix and exposes bare names.
+
 ### Submission wire format
 
 Nothing in the backend coerces values — the `data` map is JSON in, JSONB in the column, JSON out. Match the

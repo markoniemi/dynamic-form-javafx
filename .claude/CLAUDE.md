@@ -1,7 +1,8 @@
 # Claude Development Guidelines
 
-This document provides development guidelines for this project. Detailed conventions live in the project skills
-under `.claude/skills/` (`dynamic-form-desktop`, `dynamic-form-desktop-review`, `test-all`).
+Detailed conventions live in the project skills under `.claude/skills/`: `dynamic-form-desktop` (architecture,
+backend and auth contract, SnapFX notes, workflow), `dynamic-form-desktop-review`, `test-all`. Load
+`dynamic-form-desktop` before touching client code, the API layer or anything that talks to the backend.
 
 ## What this project is
 
@@ -24,103 +25,28 @@ One property, `dynamic-form.version`, pins all three: api `X` runs against image
 - **../dynamic-form/docs/PrepareForJavaFXClient.md** — what the published artifacts guarantee, from the
   producing side. The authority on the api and testcontainers jars.
 
-## Integration with the dynamic-form and oauth2-server projects
+## Rules that must not be missed
 
-Authentication comes from [oauth2-server](../../oauth2-server), but indirectly: it is a dependency of
-`dynamic-form-testcontainers`, so this project does not declare it. When changing anything that touches the
-backend or the auth server, verify against the real containers, especially:
-
-- JWT claims, scopes and roles. The claim is `roles`, and the auth server mints the values **already
-  prefixed** (`ROLE_ADMIN`, `ROLE_USER`). The backend's converter passes a prefixed value through unchanged, so
-  either form is possible; `AuthSession` strips the prefix and exposes bare names.
-- OIDC discovery and JWKS endpoints. The auth server runs on **fixed host port 9000** with issuer
-  `http://localhost:9000`, because the `iss` claim must match what the backend expects.
-- The `desktop-client` registration: public client, PKCE required, redirect URI **`http://localhost:8123/callback`**
-  — a fixed port, matching what dynamic-form publishes.
-
-Backend behaviour worth remembering, because it is not uniform:
-
-- `GET /api/config/oauth2-issuer-uri` returns a bare **`text/plain`** string, not JSON.
-- Success statuses differ per endpoint: `POST /api/forms` → 201, `DELETE /api/forms/{key}` → 204,
-  `POST /api/form-data/{key}` → 200, `DELETE /api/form-data/submission/{id}` → 200.
-- Errors are RFC 7807 `application/problem+json`; validation errors sit under an `errors` array of
-  `{ field, message, code }`. A **401 has an empty body**, so never assume an error response is parseable JSON.
-- Submission values are not coerced anywhere. Match the React client's wire format: `date` as `"yyyy-MM-dd"`,
-  `number` as a **string**, a multi-option `checkbox` as a JSON array of selected option values.
-
-## IntelliJ MCP Tool Preferences
-
-When working with this project, prefer IntelliJ IDE MCP tools (`mcp__idea__*`) over generic alternatives:
-
-- **File operations**: Use `mcp__idea__read_file`, `mcp__idea__create_new_file` instead of Bash/generic Read/Write
-- **Project navigation**: Use `mcp__idea__search_symbol`, `mcp__idea__search_text`, `mcp__idea__list_directory_tree`
-- **Building/testing**: Use `mcp__idea__build_project`, `mcp__idea__execute_run_configuration`
-- **Refactoring**: Use `mcp__idea__rename_refactoring` for safe renames across the project
-- **Git operations**: Use `mcp__idea__git_status` to check repo state
-- **Linting/diagnostics**: Use `mcp__idea__get_file_problems`, `mcp__idea__lint_files`
-- **Debugging**: Use `mcp__idea__xdebug_*` tools for stepping through code when needed
-
-IntelliJ MCP tools are aware of the project structure, dependencies, and IDE state, making them more reliable
-than shell-based alternatives.
-
-## Architecture Overview
-
-A single-module Maven project, non-modular (classpath, no `module-info.java`):
-
-- **UI**: JavaFX 21 with SnapFX for dockable panes
-- **HTTP**: `java.net.http.HttpClient` behind a hand-written `ApiClient` — no Spring, no declarative client
-- **JSON**: Jackson 2, with `JavaTimeModule` (mandatory: `FormDataDto.submittedAt` is a `LocalDateTime`)
-- **Auth**: hand-rolled OAuth2 authorization code + PKCE over a loopback `HttpServer`
-- **Tests**: JUnit 5 unit tests (`*Test`), and integration tests (`*IT`) against the real backend in Docker
-
-### Key Architectural Patterns
-
-**No DTOs of our own** — every model comes from `com.example.dynamicform.api`. If a DTO is wrong or fails to
-deserialize, fix it in dynamic-form, not with a client-side mixin or a local copy.
-
-**The UI never touches HTTP** — UI classes never see `HttpClient`. Every API call runs off the FX thread and
-posts its result back with `Platform.runLater`. Panes communicate through `AppState`, never by referencing each
-other, so the docking framework can create, destroy and re-dock them freely.
-
-**SnapFX stays in one package** — all `org.snapfx.*` imports live in `com.example.desktop.ui.dock`. SnapFX is a
-preview library and is not on Maven Central; isolating it keeps a swap cheap.
-
-**Build prerequisite** — SnapFX must be installed into the local repository before the first build:
-`mvn initialize`. The `install-snapfx` profile in `pom.xml` downloads the release jar, checks it against a
-pinned sha256 and installs it. The profile activates only when the jar is missing, so later builds never
-touch the network; rerun the command after a version bump or a cleaned `~/.m2`.
-
-It needs its own invocation — `mvn verify` alone cannot do it. Maven resolves a project's dependencies
-before it runs any phase, so a profile bound to `initialize` cannot repair a dependency that is already
-missing when resolution happens.
+- **No DTOs of our own** — fix a wrong DTO in dynamic-form, not with a mixin or local copy.
+- **The UI never touches HTTP**; panes talk through `AppState`; `org.snapfx.*` imports stay in `ui/dock`.
+- When changing anything that touches the backend or auth server, verify against the real containers.
+- **Build prerequisite:** run `mvn initialize` once (and after a SnapFX bump or cleaned `~/.m2`) to install SnapFX.
+  It needs its own invocation; `mvn verify` alone cannot do it.
 
 ## Git Commit Messages
 
-Commit messages use a **one-line format with semicolons** to separate concerns:
+One line, semicolons between concerns, imperative mood, capitalized, no period:
+`Add ApiClient with bearer auth; map RFC 7807 problem bodies to ApiException; handle the empty-body 401`
 
-```
-Brief action; additional change; optional note
-```
-
-**Examples:**
-- `Add ApiClient with bearer auth; map RFC 7807 problem bodies to ApiException; handle the empty-body 401`
-- `Install SnapFX from its GitHub release; enable snapshots on the Repsy repository; declare gson directly`
-
-**Guidelines:**
-- One line only — concise and scannable in git log
-- Use semicolons to separate multiple logical changes
-- Use imperative mood: "add", "fix", "refactor" (not "added", "fixed")
-- Focus on **what changed and why**, not implementation details
-- Capitalize first word
-- No period at end
-
-A longer body is acceptable when the *why* does not fit on the subject line — a corrected assumption, a
+Focus on what changed and why. A longer body is fine when the *why* doesn't fit — a corrected assumption, a
 non-obvious constraint, or a decision a reader would otherwise question.
 
 ## Implementation Tasks
 
-During implementation tasks (planning, coding, testing):
-- **Do not commit** unless explicitly asked
-- Work iteratively and validate completeness before committing
-- Plan all changes upfront before execution
+- **Do not commit** unless explicitly asked.
+- Plan all changes upfront; validate completeness before committing.
 - Write the test first, watch it fail, then implement. A test never seen failing proves nothing.
+
+## Tooling
+
+Prefer IntelliJ MCP tools (`mcp__idea__*`) over generic file/shell tools; they know the project structure.
